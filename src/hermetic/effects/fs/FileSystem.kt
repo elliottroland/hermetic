@@ -1,5 +1,6 @@
 package hermetic.effects.fs
 
+import hermetic.either.*
 import java.io.*
 import java.nio.file.*
 import java.nio.charset.*
@@ -17,7 +18,7 @@ sealed interface DeleteFileError
 sealed interface DeleteDirError
 sealed interface DeleteError
 
-class ParentDirDoesNotExist(path: Path) : CreateFileError, CreateDirError, DeleteFileError, DeleteDirError, DeleteError
+class ParentPathDoesNotExist(path: Path) : CreateFileError, CreateDirError, DeleteFileError, DeleteDirError, DeleteError
 class PermissionDenied : CreateFileError, CreateDirError, DeleteFileError, DeleteDirError, DeleteError
 class PathIsDir(path: Path) : GetFileError, CreateFileError, DeleteFileError, DeleteError
 class PathIsFile(path: Path) : GetDirError, CreateDirError, DeleteDirError, DeleteError
@@ -37,12 +38,42 @@ class PathDoesNotExist(path: Path) : GetFileError, GetDirError, GetError, Delete
  * [FileOrDir] type, but it is not expected that you will need this very often.
  */
 interface FileSystem {
-    fun get(path: Path): FileOrDir?
+    fun get(path: Path): Either<GetError, FileOrDir>
 
     /**
      * Returns the file at the given [path], if it exists.
      */
-    fun getFile(path: Path): File? = get(path).fileOrNull()
+    fun getFile(path: Path): Either<GetFileError, File> =
+        get(path).fold(
+            {
+                when (it) {
+                    is Dir -> err(PathIsDir(path))
+                    is File -> ok(it)
+                }
+            },
+            {
+                when (it) {
+                    PermissionDenied, PathDoesNotExist, ParentPathDoesNotExist -> err(it)
+                }
+            }
+        )
+    fun getFileOrNull(path: Path): File? = getFile(path).getOrNull()
+
+    fun getDir(path: Path): Either<GetDirError, Dir> =
+        get(path).fold(
+            {
+                when (it) {
+                    is Dir -> ok(it)
+                    is File -> err(PathIsFile(path))
+                }
+            },
+            {
+                when (it) {
+                    PermissionDenied, PathDoesNotExist, ParentPathDoesNotExist -> err(it)
+                }
+            }
+        )
+    fun getDirOrNull(path: Path): Dir? = getDir(path).getOrNull()
 
     /**
      * Attempts to create the file at the given [path], and returns the resulting file if
@@ -67,7 +98,6 @@ interface FileSystem {
     fun deleteFile(path: Path): Boolean = getFile(path)?.let { delete(it) } ?: false
     fun deleteDir(path: Path): Boolean = getDir(path)?.let { delete(it) } ?: false
 
-    fun getDir(path: Path): Dir? = get(path).dirOrNull()
     fun createDir(path: Path, mkdirs: Boolean): Dir?
     fun getOrCreateDir(path: Path): Dir = getDir(path) ?: createDir(path, mkdirs = true)!!
     
