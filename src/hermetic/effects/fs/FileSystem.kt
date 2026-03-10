@@ -18,11 +18,11 @@ sealed interface DeleteFileError
 sealed interface DeleteDirError
 sealed interface DeleteError
 
-class ParentPathDoesNotExist(path: Path) : CreateFileError, CreateDirError, DeleteFileError, DeleteDirError, DeleteError
+class ParentPathDoesNotExist(val path: Path) : CreateFileError, CreateDirError, DeleteFileError, DeleteDirError, DeleteError
 class PermissionDenied : CreateFileError, CreateDirError, DeleteFileError, DeleteDirError, DeleteError
-class PathIsDir(path: Path) : GetFileError, CreateFileError, DeleteFileError, DeleteError
-class PathIsFile(path: Path) : GetDirError, CreateDirError, DeleteDirError, DeleteError
-class PathDoesNotExist(path: Path) : GetFileError, GetDirError, GetError, DeleteError
+class PathIsDir(val path: Path) : GetFileError, CreateFileError, DeleteFileError, DeleteError
+class PathIsFile(val path: Path) : GetDirError, CreateDirError, DeleteDirError, DeleteError
+class PathDoesNotExist(val path: Path) : GetFileError, GetDirError, GetError, DeleteError
 
 /**
  * An effect which exposes the underlying file system in different ways, depending on the
@@ -41,45 +41,10 @@ interface FileSystem {
     fun get(path: Path): Either<GetError, FileOrDir>
 
     /**
-     * Returns the file at the given [path], if it exists.
-     */
-    fun getFile(path: Path): Either<GetFileError, File> =
-        get(path).fold(
-            {
-                when (it) {
-                    is Dir -> err(PathIsDir(path))
-                    is File -> ok(it)
-                }
-            },
-            {
-                when (it) {
-                    PermissionDenied, PathDoesNotExist, ParentPathDoesNotExist -> err(it)
-                }
-            }
-        )
-    fun getFileOrNull(path: Path): File? = getFile(path).getOrNull()
-
-    fun getDir(path: Path): Either<GetDirError, Dir> =
-        get(path).fold(
-            {
-                when (it) {
-                    is Dir -> ok(it)
-                    is File -> err(PathIsFile(path))
-                }
-            },
-            {
-                when (it) {
-                    PermissionDenied, PathDoesNotExist, ParentPathDoesNotExist -> err(it)
-                }
-            }
-        )
-    fun getDirOrNull(path: Path): Dir? = getDir(path).getOrNull()
-
-    /**
      * Attempts to create the file at the given [path], and returns the resulting file if
      * successful. If a file already existed at the given path, then null is returned.
      */
-    fun createFile(path: Path, mkdirs: Boolean): File?
+    fun createFile(path: Path, mkdirs: Boolean): Either<CreateFileError, File>
 
     fun getOrCreateFile(path: Path): File = getFile(path) ?: createFile(path, mkdirs = true)!!
 
@@ -119,6 +84,42 @@ interface FileSystem {
      */
     // fun ephemeralFileSystem(root: Path): EphemeralFileSystem
 }
+
+/** Returns the file at the given [path], if it exists. */
+fun FileSystem.getFile(path: Path): Either<GetFileError, File> =
+    get(path).fold(
+        {
+            when (it) {
+                is Dir -> err(PathIsDir(path))
+                is File -> ok(it)
+            }
+        },
+        {
+            when (it) {
+                is PathDoesNotExist -> err(it)
+            }
+        }
+    )
+
+fun FileSystem.getFileOrNull(path: Path): File? = getFile(path).getOrNull()
+
+fun FileSystem.getDir(path: Path): Either<GetDirError, Dir> =
+    get(path).fold(
+        {
+            when (it) {
+                is Dir -> ok(it)
+                is File -> err(PathIsFile(path))
+            }
+        },
+        {
+            when (it) {
+                is PathDoesNotExist -> err(it)
+            }
+        }
+    )
+
+fun FileSystem.getDirOrNull(path: Path): Dir? = getDir(path).getOrNull()
+
 
 /**
  * A [FileSystem] which is not scoped to any particular root directory. Generally, this should
