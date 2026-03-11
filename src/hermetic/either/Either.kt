@@ -286,20 +286,6 @@ inline fun <E, O : P, P> Either<E, O>.recoverIf(condition: (E) -> Boolean, trans
 inline fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?> =
     recoverIf(condition) { null }
 
-// ------ Lapsing ------
-
-inline fun <E : F, F, O> Either<E, O>.lapse(transform: (O) -> F): Either<F, Nothing> =
-    fold({ err(transform(it)) }, { err(it) })
-
-inline fun <E : F, F, O, P> Either<E, O>.maybeLapse(transform: (O) -> Either<F, P>): Either<F, P> =
-    fold({ transform(it) }, { err(it) })
-
-inline fun <E : F, F, O> Either<E, O>.lapseIf(condition: (O) -> Boolean, transform: (O) -> F): Either<F, O> =
-    fold({ if (condition(it)) err(transform(it)) else this }, { this })
-
-inline fun <E, O> Either<E, O>.lapseToNullIf(condition: (O) -> Boolean): Either<E?, O> =
-    lapseIf(condition) { null }
-
 // ------ Either scope ------
 
 /**
