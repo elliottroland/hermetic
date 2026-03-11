@@ -7,10 +7,10 @@ import kotlinx.coroutines.*
  * A convenience wrapper around Kotlin's coroutine functionality, which allows for the management
  * of the lifecycle of coroutines. This is the suspending equivalent to [ManageAsync].
  */
-interface SuspendManageAsync {
-    suspend fun <R> async(waitForStart: Boolean, block: suspend () -> R): Async<R>
-    suspend fun <R> await(async: Async<R>, timeoutMillis: Long): Either<Async.Failure, R>
-    suspend fun cancel(async: Async<*>)
+interface SuspendAsync {
+    suspend fun <R> async(waitForStart: Boolean, block: suspend () -> R): Awaitable<R>
+    suspend fun <R> await(async: Awaitable<R>, timeoutMillis: Long): Either<Async.Failure, R>
+    suspend fun cancel(async: Awaitable<*>)
 }
 
 // TODO

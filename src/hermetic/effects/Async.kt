@@ -7,7 +7,7 @@ import java.util.UUID
 val log = Log("effects.Async")
 
 fun main() {
-    context(ManageAsyncDefault(), WriteLogConsole(), WaitDefault()) {
+    context(AsyncDefault(), WriteLogConsole(), WaitDefault()) {
         async { sayHello("Roland") }
         log.info("Computing async")
         val sum = async(waitForStart = true) { log.info("Async started"); 1 + 2 }
@@ -17,7 +17,7 @@ fun main() {
         log.info("Result: $result")
     }
 
-    // val result = context(WriteLogConsole(), ManageAsyncLazy()) {
+    // val result = context(WriteLogConsole(), AsyncLazy()) {
     //     val sum = async { 1 + 2 }
     //     log.info(sum.await())
 
@@ -30,8 +30,8 @@ fun main() {
     // }
 }
 
-context(_: ManageAsync, _: WriteLog, _: Wait)
-fun runForever(): Async<Nothing> =
+context(_: Async, _: WriteLog, _: Wait)
+fun runForever(): Awaitable<Nothing> =
     async {
         while (true) {
             log.info("Waiting some amount of time")
@@ -53,17 +53,11 @@ fun nothing(): Nothing = throw IllegalStateException()
  * run in a separate thread, evaluate lazily, etc. is all determined by the various implementations. Implementations should
  * always return from [async] without blocking on the completion of the provided block.
  */
-interface ManageAsync {
-    fun <R> async(waitForStart: Boolean, block: () -> R): Async<R>
-    fun <R> await(async: Async<R>, timeoutMillis: Long): Either<Async.Failure, R>
-    fun cancel(async: Async<*>, reason: String?)
-}
+interface Async {
+    fun <R> async(waitForStart: Boolean, block: () -> R): Awaitable<R>
+    fun <R> await(async: Awaitable<R>, timeoutMillis: Long): Either<Async.Failure, R>
+    fun cancel(async: Awaitable<*>, reason: String?)
 
-/**
- * A "bare particular" used by the various implementations of [ManageAsync]. This interface serves only
- * as a tag for the item used by these implementations, and a namespace for the [Async.Failure] type.
- */
-interface Async<out R> {
     sealed interface Failure {
         data class Timeout(override val exception: Throwable) : Failure, Exceptional
         data class Cancelled(override val exception: Throwable) : Failure, Exceptional
@@ -71,29 +65,35 @@ interface Async<out R> {
     }
 }
 
+/**
+ * A "bare particular" used by the various implementations of [Async]. This interface serves only
+ * as a tag for the item used by these implementations, and a namespace for the [Async.Failure] type.
+ */
+interface Awaitable<out R>
+
 @Suppress("NOTHING_TO_INLINE")
-context(t: ManageAsync)
-inline fun <R> async(waitForStart: Boolean = true, noinline block: () -> R): Async<R> =
+context(t: Async)
+inline fun <R> async(waitForStart: Boolean = true, noinline block: () -> R): Awaitable<R> =
     t.async(waitForStart, block)
 
 @Suppress("NOTHING_TO_INLINE")
-context(t: ManageAsync)
-inline fun <R> Async<R>.await(timeoutMillis: Long = Long.MAX_VALUE): Either<Async.Failure, R> =
+context(t: Async)
+inline fun <R> Awaitable<R>.await(timeoutMillis: Long = Long.MAX_VALUE): Either<Async.Failure, R> =
     t.await(this, timeoutMillis)
 
 @Suppress("NOTHING_TO_INLINE")
-context(t: ManageAsync)
-inline fun <R> Async<R>.cancel(reason: String? = null) =
+context(t: Async)
+inline fun <R> Awaitable<R>.cancel(reason: String? = null) =
     t.cancel(this, reason)
 
 /**
- * An implementation of [ManageAsync] which resolves [async] results in separate threads backed by
+ * An implementation of [Async] which resolves [async] results in separate threads backed by
  * the [executor]. Convenience constructors are provided for creating an infinitely-scaling cached
  * thread pool which provides equivalent behavior to spinning up threads independently.
  */
-class ManageAsyncDefault(
+class AsyncDefault(
     val executor: ExecutorService
-) : ManageAsync {
+) : Async {
     constructor(
         threadFactory: ThreadFactory
     ) : this(Executors.newCachedThreadPool(threadFactory))
@@ -103,15 +103,15 @@ class ManageAsyncDefault(
         daemon: Boolean = true
     ) : this(DefaultThreadFactory(namePrefix, daemon))
 
-    override fun <R> async(waitForStart: Boolean, block: () -> R): Async<R> {
+    override fun <R> async(waitForStart: Boolean, block: () -> R): Awaitable<R> {
         val latch = if (waitForStart) CountDownLatch(1) else null
-        val async = CompletableAsync.from(executor) { latch?.countDown(); block() }
+        val async = CompletableAwaitable.from(executor) { latch?.countDown(); block() }
         latch?.await()
         return async
     }
 
-    override fun <R> await(async: Async<R>, timeoutMillis: Long): Either<Async.Failure, R> {
-        require(async is CompletableAsync<R>)
+    override fun <R> await(async: Awaitable<R>, timeoutMillis: Long): Either<Async.Failure, R> {
+        require(async is CompletableAwaitable<R>)
         return try {
             ok(async.future.get(timeoutMillis, TimeUnit.MILLISECONDS))
         } catch (e: TimeoutException) {
@@ -127,8 +127,8 @@ class ManageAsyncDefault(
         }
     }
 
-    override fun cancel(async: Async<*>, reason: String?) {
-        require(async is CompletableAsync<*>)
+    override fun cancel(async: Awaitable<*>, reason: String?) {
+        require(async is CompletableAwaitable<*>)
         async.future.completeExceptionally(CancellationException(reason ?: "Async was manually cancelled"))
     }
     
@@ -139,36 +139,36 @@ class ManageAsyncDefault(
         }
     }
 
-    private class CompletableAsync<R>(val future: CompletableFuture<R>) : Async<R> {
+    private class CompletableAwaitable<R>(val future: CompletableFuture<R>) : Awaitable<R> {
         companion object {
             fun <R> from(executor: Executor, block: () -> R) =
-                CompletableAsync(CompletableFuture.supplyAsync(block, executor))
+                CompletableAwaitable(CompletableFuture.supplyAsync(block, executor))
         }
     }
 }
 
 /**
- * An implementation of [ManageAsync] which evaluates the [Async] lazily when it is awaited. The same asyncs
+ * An implementation of [Async] which evaluates the [Async] lazily when it is awaited. The same asyncs
  * can be re-awaited multiple times, but the same result will be returned.
  */
-class ManageAsyncLazy : ManageAsync {
-    override fun <R> async(waitForStart: Boolean, block: () -> R): Async<R> =
-        LazyAsync(block)
+class AsyncLazy : Async {
+    override fun <R> async(waitForStart: Boolean, block: () -> R): Awaitable<R> =
+        LazyAwaitable(block)
     
-    override fun <R> await(async: Async<R>, timeoutMillis: Long): Either<Async.Failure, R> {
-        require(async is LazyAsync<R>)
+    override fun <R> await(async: Awaitable<R>, timeoutMillis: Long): Either<Async.Failure, R> {
+        require(async is LazyAwaitable<R>)
         return when (val cancellation = async.cancellation) {
             null -> eitherCatching { async.value }.mapErr { Async.Failure.Unknown(it) }
             else -> err(Async.Failure.Cancelled(cancellation))
         }
     }
 
-    override fun cancel(async: Async<*>, reason: String?) {
-        require(async is LazyAsync<*>)
+    override fun cancel(async: Awaitable<*>, reason: String?) {
+        require(async is LazyAwaitable<*>)
         async.cancellation = async.cancellation ?: CancellationException(reason ?: "Manually cancelled")
     }
 
-    class LazyAsync<R>(block: () -> R) : Async<R> {
+    class LazyAwaitable<R>(block: () -> R) : Awaitable<R> {
         val value: R by lazy { block() }
         @Volatile var cancellation: CancellationException? = null
     }

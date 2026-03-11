@@ -28,12 +28,16 @@ data class File(override val file: JFile) : FileOrDir {
     
     context(fs: FileSystem)
     fun outputStream() = fs.outputStream(this)
+
+    override fun toString() = "File($file)"
 }
 
 data class Dir(override val file: JFile) : FileOrDir {
     context(fs: FileSystem)
-    fun files() = listFiles(this)
+    fun files() = fs.listFiles(this)
 
     context(fs: FileSystem)
-    fun dirs() = listDirs(this)
+    fun dirs() = fs.listDirs(this)
+
+    override fun toString() = "Dir($file)"
 }

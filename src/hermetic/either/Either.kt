@@ -68,6 +68,8 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
     val isErr: Boolean get() = value is Err<*>
     val isOk: Boolean get() = value !is Err<*>
 
+    override fun toString() = fold({ "ok($it)" }, { "err($it)" })
+
     /**
      * Applies [ifOk] if this is [ok], or [ifErr] if this is [err], and returns the result.
      */
@@ -284,6 +286,20 @@ inline fun <E, O : P, P> Either<E, O>.recoverIf(condition: (E) -> Boolean, trans
 inline fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?> =
     recoverIf(condition) { null }
 
+// ------ Lapsing ------
+
+inline fun <E : F, F, O> Either<E, O>.lapse(transform: (O) -> F): Either<F, Nothing> =
+    fold({ err(transform(it)) }, { err(it) })
+
+inline fun <E : F, F, O, P> Either<E, O>.maybeLapse(transform: (O) -> Either<F, P>): Either<F, P> =
+    fold({ transform(it) }, { err(it) })
+
+inline fun <E : F, F, O> Either<E, O>.lapseIf(condition: (O) -> Boolean, transform: (O) -> F): Either<F, O> =
+    fold({ if (condition(it)) err(transform(it)) else this }, { this })
+
+inline fun <E, O> Either<E, O>.lapseToNullIf(condition: (O) -> Boolean): Either<E?, O> =
+    lapseIf(condition) { null }
+
 // ------ Either scope ------
 
 /**
@@ -378,10 +394,10 @@ fun <E, O> either(block: EitherScope<E, O>.() -> O): Either<E, O> {
 // ------ Dealing with exceptions ------
 
 /**
- * Throws an [IllegalArgumentException] with the given [message] if this is an [err], otherwise returns the [ok].
+ * Throws an [IllegalStateException] with the given [message] if this is an [err], otherwise returns the [ok].
  * If the [err] is an instance of [Exceptional], then its exception is used to populate the cause of the thrown exception.
  */
-inline fun <E, O> Either<E, O>.check(message: (E) -> String): O =
+inline fun <E, O> Either<E, O>.getOrThrow(message: (E) -> String): O =
     getOr { throw IllegalStateException(message(it), (it as? Exceptional)?.exception) }
 
 /**
