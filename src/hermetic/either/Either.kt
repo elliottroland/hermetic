@@ -94,6 +94,8 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
             block((value as Err<E>).value)
         }
     }
+
+    fun toPair(): Pair<E?, O?> = Pair(errOrNull(), getOrNull())
 }
 
 /**
@@ -177,41 +179,18 @@ fun <E, O, P> Either<E, O>.map(mapper: (O) -> P): Either<E, P> =
  * Applies the [mapper] if this is [err], wrapping the result in an [Either], otherwise returns this as is. This is equivalent to `flatMapErr { err(mapper(it) }`.
  */
 inline fun <E, F, O> Either<E, O>.mapErr(mapper: (E) -> F): Either<F, O> =
-    flatMapErr { err(mapper(it)) }
+    fold({ ok(it) }, { err(mapper(it)) })
+
+// ------ Flat mapping ------
 
 /**
- * Applies the [mapper] if this is [ok], returning the result, otherwise returns this as is. Note that this operation works within the [ok] branch.
+ * Applies the [mapper] if this is [ok], returning the result, otherwise returns this as is. The [mapper] is allowed to generalize the error type in this
+ * [Either], but if a completely disjoint error type is needed then use [Either.fold] instead.
  */
-inline fun <E, O, P> Either<E, O>.flatMap(mapper: (O) -> Either<E, P>): Either<E, P> =
+inline fun <E : F, F, O, P> Either<E, O>.flatMap(mapper: (O) -> Either<F, P>): Either<F, P> =
     fold({ mapper(it) }, { err(it) })
 
-/**
- * Applies the [mapper] if this is an [err], returning the result, otherwise returns this as is. Note that this operation works within the [err] branch.
- * If you need to cross branches, consider using [recover] or [tryRecover] functions.
- */
-inline fun <E, F, O> Either<E, O>.flatMapErr(mapper: (E) -> Either<F, O>): Either<F, O> =
-    fold({ ok(it) }, { mapper(it) })
-
 // ------ Recovery ------
-
-/**
- * Applies the [transform] if this is an [err], wrapping the result as the [ok] branch of an [Either].
- * ```
- * fun possiblyFailingFunction(): Either<Failure, String> {
- *   // Some possibly failing code
- * }
- *
- * fun myFunction(): String {
- *   val result: String = possiblyFailingFunction()
- *     .recover { err -> "ERROR: ${err.message}" }
- *     .getOrNull()!! // will never fail
- * }
- * ```
- *
- * It is not generally expected that you'll be able to recover every failure case, so that [recoverIf] or [tryRecover] might be a better options.
- */
-inline fun <E, O : P, P> Either<E, O>.recover(transform: (E) -> P): Either<Nothing, P> =
-    fold({ ok(it) }, { ok(transform(it)) })
 
 /**
  * Attempts to [recover] an [err] with a function that itself might fail in a new way. This can be seen as a [flatMapErr] which allows you to cross
@@ -227,12 +206,33 @@ inline fun <E, O : P, P> Either<E, O>.recover(transform: (E) -> P): Either<Nothi
  *
  * fun myFunction(): String {
  *   val result: Either<OtherFailure, String> = possiblyFailingFunction()
- *     .tryRecover { err -> possiblyFailingRecovery(err) }
+ *     .recover { err -> possiblyFailingRecovery(err) }
  * }
  * ```
  */
-inline fun <E, F, O : P, P> Either<E, O>.tryRecover(transform: (E) -> Either<F, P>): Either<F, P> =
+inline fun <E, F, O : P, P> Either<E, O>.recover(transform: (E) -> Either<F, P>): Either<F, P> =
     fold({ ok(it) }, { transform(it) })
+
+/**
+ * Applies the [transform] if this is an [err], wrapping the result as the [ok] branch of an
+ * [Either].
+ * ```
+ * fun possiblyFailingFunction(): Either<Failure, String> {
+ *   // Some possibly failing code
+ * }
+ *
+ * fun myFunction(): String {
+ *   val result: String = possiblyFailingFunction()
+ *     .fullRecover { err -> "ERROR: ${err.message}" }
+ *     .getOrNull()!! // will never fail
+ * }
+ * ```
+ *
+ * It is not generally expected that you'll be able to recover every failure case, so that
+ * [recoverIf] or [recover] might be a better options.
+ */
+inline fun <E, O : P, P> Either<E, O>.fullRecover(transform: (E) -> P): Either<Nothing, P> =
+        fold({ ok(it) }, { ok(transform(it)) })
 
 /**
  * Attempts to [recover] an [err] branch using the [transform] if the [condition] is met, otherwise returns this as is. For example, suppose you want
