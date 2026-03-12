@@ -383,7 +383,7 @@ fun <E, O> either(block: EitherScope<E, O>.() -> O): Either<E, O> {
  * Throws an [IllegalStateException] with the given [message] if this is an [err], otherwise returns the [ok].
  * If the [err] is an instance of [Exceptional], then its exception is used to populate the cause of the thrown exception.
  */
-inline fun <E, O> Either<E, O>.getOrThrow(message: (E) -> String): O =
+inline fun <E, O> Either<E, O>.getOrThrow(message: (E) -> String = { "Unexpected error: $it" }): O =
     getOr { throw IllegalStateException(message(it), (it as? Exceptional)?.exception) }
 
 /**
