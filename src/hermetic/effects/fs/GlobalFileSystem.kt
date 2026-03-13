@@ -16,7 +16,7 @@ import kotlin.io.*
  * recommended mechanism for disk IO, since it allows these operations to be scaled to the needs of
  * the underlying host independently of the workload of your application code.
  */
-class GlobalFileSystem(private val async: Async?) : FileSystem {
+class GlobalFileSystem(private val async: Async? = null) : FileSystem {
     override fun get(path: Path): Either<GetError, FileOrDir> {
         val file = path.java.toFile()
         return when {
