@@ -24,7 +24,7 @@ class EphemeralFileSystem(private val rfs: RestrictedFileSystem) : RestrictedFil
         rfs.createDir(path, mkdirs).onOk { toDelete.addFirst(it) }
 
     override fun close() {
-        val errors = mutableList<DeleteError>()
+        val errors = mutableListOf<DeleteError>()
         for (ford in toDelete) {
             delete(ford).onErr { errors.add(it) }
         }

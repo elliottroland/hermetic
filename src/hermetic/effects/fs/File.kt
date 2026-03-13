@@ -1,5 +1,6 @@
 package hermetic.effects.fs
 
+import hermetic.either.*
 import java.io.*
 import java.time.Instant
 import java.nio.file.Paths
@@ -72,10 +73,16 @@ class File internal constructor(override val java: JFile) : FileOrDir {
     val sizeBytes get() = java.length()
 
     context(fs: FileSystem)
-    fun inputStream() = fs.inputStream(this)
+    fun inputStream(): Either<FileError, InputStream> = fs.inputStream(this)
+
+    context(fs: FileSystem)
+    fun reader(): Either<FileError, Reader> = inputStream().map { it.reader() }
     
     context(fs: FileSystem)
-    fun outputStream() = fs.outputStream(this)
+    fun outputStream(): Either<FileError, OutputStream> = fs.outputStream(this)
+
+    context(fs: FileSystem)
+    fun writer(): Either<FileError, Writer> = outputStream().map { it.writer() }
 
     override fun toString() = "File($java)"
     override fun hashCode() = java.hashCode()
@@ -90,6 +97,9 @@ class Dir internal constructor(override val java: JFile) : FileOrDir {
 
     context(fs: FileSystem)
     fun dirs() = fs.listDirs(this)
+
+    fun resolve(path: Path): Path = this.path.resolve(path)
+    fun resolve(path: String): Path = this.path.resolve(path)
 
     override fun toString() = "Dir($java)"
     override fun hashCode() = java.hashCode()

@@ -159,60 +159,15 @@ interface FileSystem {
         getOrCreateDir(path, mkdirs).map { restrictFs(it) }
 }
 
-/**
- * A [FileSystem] which is similar to a [RestrictedFileSystem], but which deletes all the files
- * created when its closed.
- */
-// interface EphemeralFileSystem : FileSystem, Closeable {
-//     fun fsRoot(): Path
-// }
-
-/**
- * A [FileSystem] which is scoped to a particular [root] directory. All paths are interpreted
- * relative to that. Any attempts to reach out of this will result in an error being thrown.
- */
-// interface RestrictedFileSystem : FileSystem {
-//     fun fsRoot(): Path
-// }
-
-/**
- * The standard implementation for file access, which 
- */
-// class RestrictedFileSystemDefault(private val root: Path) : RestrictedFileSystem {
-//     override fun fsRoot() = root
-//     override fun getFile(path: Path): File? = root.resolve(path).toFile().takeIf { it.exists() }?.let { File(it) }
-//     override fun createFile(path: Path, mkdirs: Boolean): File? = root.resolve(path).toFile().takeIf { it.createNewFile() }?.let { File(it) }
-//     override fun deleteFile(path: Path): Boolean = root.resolve(path).toFile().delete()
-//     override fun createDir(path: Path, mkdirs: Boolean) = root.resolve(path).toFile().takeIf { if (mkdirs) it.mkdirs() else it.mkdir() }?.let { Dir(it) }
-// }
-
-// class EphemeralFileSystemDefault(root: Path) : EphemeralFileSystem {
-//     private val rfs = RestrictedFileSystemDefault(root)
-//     private val filesToClean = mutableListOf<java.io.File>()
-
-//     override fun fsRoot() =
-//         rfs.fsRoot()
-
-//     override fun getFile(path: Path): File? =
-//         rfs.getFile(path)
-
-//     @Synchronized override fun createFile(path: Path, mkdirs: Boolean): File? =
-//         rfs.createFile(path, mkdirs)?.also { it.file.deleteOnExit(); filesToClean.add(0, it.file)}
-
-//     override fun deleteFile(path: Path): Boolean =
-//         rfs.deleteFile(path)
-
-//     @Synchronized override fun createDir(path: Path, mkdirs: Boolean) =
-//         rfs.createDir(path, mkdirs)?.also { it.file.deleteOnExit(); filesToClean.add(0, it.file) }
-        
-//     @Synchronized override fun close() {
-//         val exceptions = mutableListOf<Exception>()
-//         for (file in filesToClean) {
-//             try {
-//                 file.delete()
-//             } catch (e: Exception) {
-//                 exceptions.add(e)
-//             }
-//         }
-//     }
-// }
+fun FileSystem.get(path: String) = get(Path.of(path))
+fun FileSystem.createFile(path: String, mkdirs: Boolean = false) = createFile(Path.of(path), mkdirs)
+fun FileSystem.createFile(parentDir: Dir, filename: String, mkdirs: Boolean = false) = createFile(parentDir.resolve(filename), mkdirs)
+fun FileSystem.createDir(path: String, mkdirs: Boolean = false) = createDir(Path.of(path), mkdirs)
+fun FileSystem.createDir(parentDir: Dir, dirName: String, mkdirs: Boolean = false) = createDir(parentDir.resolve(dirName), mkdirs)
+fun FileSystem.getFile(path: String) = getFile(Path.of(path))
+fun FileSystem.getFileOrNull(path: String) = getFileOrNull(Path.of(path))
+fun FileSystem.getOrCreateFile(path: String, mkdirs: Boolean = false) = getOrCreateFile(Path.of(path), mkdirs)
+fun FileSystem.getDir(path: String) = getDir(Path.of(path))
+fun FileSystem.getDirOrNull(path: String) = getDirOrNull(Path.of(path))
+fun FileSystem.getOrCreateDir(path: String, mkdirs: Boolean = false) = getOrCreateDir(Path.of(path), mkdirs)
+fun FileSystem.restrictFs(path: String, mkdirs: Boolean = false) = restrictFs(Path.of(path), mkdirs)

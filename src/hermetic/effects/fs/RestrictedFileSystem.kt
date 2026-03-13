@@ -57,6 +57,7 @@ open class DefaultRestrictedFileSystem(private val rootDir: Dir, private val gfs
      */
     internal fun resolve(path: Path): Path =
         when {
+            path.startsWith(rootDir.path) -> return path
             path.isAbsolute -> rootDir.path.relativize(path)
             else -> path
         }.also {

@@ -1,5 +1,7 @@
 package hermetic.either
 
+import java.util.concurrent.ConcurrentLinkedDeque
+
 /**
  * Represents the outcome of a function, either a failure of type [E] or a success of type [O]. An [Either] cannot be constructed directly, but must be
  * done via one of the branch methods ([err] and [ok]), or through the [either] scope function. Various mechanisms exist for working with the value of
@@ -53,6 +55,19 @@ package hermetic.either
  *   "${item1.id} + ${item2.id}"
  * }
  * ```
+ * 
+ * ### Eithers and Pairs
+ * Each [Either] can be destructred into its err and ok values (at most one of which will be non-null), and can be directly converted to a [Pair] using
+ * [toPair] for contexts where that it more useful:
+ * ```
+ * // Some possibly failing code
+ * fun getItem(key: String): Either<Failure, Item> {}
+ * 
+ * val (err, ok) = getItem(key)
+ * if (err != null) {
+ *   // Deal with error
+ * }
+ * ```
  *
  * ### Comments on naming
  * It is common to see types like this called "Result", but Kotlin already defines a [Result] type which does not allow us to scope down the failure
@@ -81,7 +96,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
      * Run the [block] if this [Either] is [ok], otherwise do nothing, then return this.
      */
     @Suppress("UNCHECKED_CAST")
-    inline fun onOk(block: (O) -> Unit): Either<E, O> = apply {
+    fun onOk(block: (O) -> Unit): Either<E, O> = apply {
         if (isOk) {
             block(this.value as O)
         }
@@ -91,13 +106,32 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
      * Run the [block] if this [Either] is [err], otherwise do nothing, then return this.
      */
     @Suppress("UNCHECKED_CAST")
-    inline fun onErr(block: (E) -> Unit): Either<E, O> = apply {
+    fun onErr(block: (E) -> Unit): Either<E, O> = apply {
         if (isErr) {
             block((value as Err<E>).value)
         }
     }
 
-    fun toPair(): Pair<E?, O?> = Pair(errOrNull(), getOrNull())
+    /**
+     * Equivalent to [errOrNull], allowing for the destructing of an [Either] into its err and ok values.
+     * ```
+     * val (err, ok) = someEither
+     * ```
+     */
+    operator fun component1(): E? = errOrNull()
+
+    /**
+     * Equivalent to [getOrNull], allowing for the destructing of an [Either] into its err and ok values.
+     * ```
+     * val (err, ok) = someEither
+     * ```
+     */
+    operator fun component2(): O? = getOrNull()
+
+    /**
+     * Convert this [Either] into a [Pair].
+     */
+    fun toPair(): Pair<E?, O?> = Pair(component1(), component2())
 }
 
 /**
@@ -111,8 +145,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
  * Builds an [Either] on the ok branch, representing a successful outcome. This is the "expected" value of an [Either], and is therefore the
  * value on which functions like [getOrNull] or [map] operate.
  */
-@Suppress("NOTHING_TO_INLINE")
-inline fun <T> ok(t: T): Either<Nothing, T> = Either(t)
+fun <T> ok(t: T): Either<Nothing, T> = Either(t)
 
 /**
  * Builds an [Either] on the err branch, representing a failed outcome. This is the "unexpected" value of an [Either], and is therefore the
@@ -120,8 +153,7 @@ inline fun <T> ok(t: T): Either<Nothing, T> = Either(t)
  *
  * The recovery functions ([recover], [recoverIf], [recoverToNullIf]) are designed to allow this branch to map back to the [ok] branch.
  */
-@Suppress("NOTHING_TO_INLINE")
-inline fun <T> err(t: T): Either<T, Nothing> = Either(Err(t))
+fun <T> err(t: T): Either<T, Nothing> = Either(Err(t))
 
 // ------ Getting ------
 
@@ -157,16 +189,14 @@ inline fun <E, O> Either<E, O>.errOr(ifOk: (O) -> E): E =
  * Returns the value in this [Either] if it is on the [ok] branch, otherwise returns null. This is equivalent to `getOr { null }`.
  */
 // Note: This is made inline so that we can avoid function call overheads.
-@Suppress("NOTHING_TO_INLINE")
-inline fun <E, O> Either<E, O>.getOrNull(): O? =
+fun <E, O> Either<E, O>.getOrNull(): O? =
     getOr { null }
 
 /**
  * Returns the value in this [Either] if it is on the [err] branch, otherwise returns null. This is equivalent to `errOr { null }`.
  */
 // Note: This is made inline so that we can avoid function call overheads.
-@Suppress("NOTHING_TO_INLINE")
-inline fun <E, O> Either<E, O>.errOrNull(): E? =
+fun <E, O> Either<E, O>.errOrNull(): E? =
     errOr { null }
 
 // ------ Mapping ------
@@ -180,7 +210,7 @@ fun <E, O, P> Either<E, O>.map(mapper: (O) -> P): Either<E, P> =
 /**
  * Applies the [mapper] if this is [err], wrapping the result in an [Either], otherwise returns this as is. This is equivalent to `flatMapErr { err(mapper(it) }`.
  */
-inline fun <E, F, O> Either<E, O>.mapErr(mapper: (E) -> F): Either<F, O> =
+fun <E, F, O> Either<E, O>.mapErr(mapper: (E) -> F): Either<F, O> =
     fold({ ok(it) }, { err(mapper(it)) })
 
 // ------ Flat mapping ------
@@ -189,7 +219,7 @@ inline fun <E, F, O> Either<E, O>.mapErr(mapper: (E) -> F): Either<F, O> =
  * Applies the [mapper] if this is [ok], returning the result, otherwise returns this as is. The [mapper] is allowed to generalize the error type in this
  * [Either], but if a completely disjoint error type is needed then use [Either.fold] instead.
  */
-inline fun <E : F, F, O, P> Either<E, O>.flatMap(mapper: (O) -> Either<F, P>): Either<F, P> =
+fun <E : F, F, O, P> Either<E, O>.flatMap(mapper: (O) -> Either<F, P>): Either<F, P> =
     fold({ mapper(it) }, { err(it) })
 
 // ------ Recovery ------
@@ -212,7 +242,7 @@ inline fun <E : F, F, O, P> Either<E, O>.flatMap(mapper: (O) -> Either<F, P>): E
  * }
  * ```
  */
-inline fun <E, F, O : P, P> Either<E, O>.recover(transform: (E) -> Either<F, P>): Either<F, P> =
+fun <E, F, O : P, P> Either<E, O>.recover(transform: (E) -> Either<F, P>): Either<F, P> =
     fold({ ok(it) }, { transform(it) })
 
 /**
@@ -233,7 +263,7 @@ inline fun <E, F, O : P, P> Either<E, O>.recover(transform: (E) -> Either<F, P>)
  * It is not generally expected that you'll be able to recover every failure case, so that
  * [recoverIf] or [recover] might be a better options.
  */
-inline fun <E, O : P, P> Either<E, O>.fullRecover(transform: (E) -> P): Either<Nothing, P> =
+fun <E, O : P, P> Either<E, O>.fullRecover(transform: (E) -> P): Either<Nothing, P> =
         fold({ ok(it) }, { ok(transform(it)) })
 
 /**
@@ -258,7 +288,7 @@ inline fun <E, O : P, P> Either<E, O>.fullRecover(transform: (E) -> P): Either<N
  * }
  * ```
  */
-inline fun <E, O : P, P> Either<E, O>.recoverIf(condition: (E) -> Boolean, transform: (E) -> P): Either<E, P> =
+fun <E, O : P, P> Either<E, O>.recoverIf(condition: (E) -> Boolean, transform: (E) -> P): Either<E, P> =
     fold({ this }, { if (condition(it)) ok(transform(it)) else this })
 
 /**
@@ -283,7 +313,7 @@ inline fun <E, O : P, P> Either<E, O>.recoverIf(condition: (E) -> Boolean, trans
  * }
  * ```
  */
-inline fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?> =
+fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?> =
     recoverIf(condition) { null }
 
 // ------ Either scope ------
@@ -291,14 +321,18 @@ inline fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Eithe
 /**
  * See [EitherScope] for details on how this is used.
  */
-private class ErrPropagation(val value: Err<*>, val scope: EitherScope<*, *>) : Throwable(null, null, false, false)
+@PublishedApi internal class ErrPropagation(val value: Err<*>, val scope: EitherScope<*, *>) : Throwable(null, null, false, false)
 
 /**
  * The scope in which [either]s are executed, which provides more functionality for controlling the flow of the function in ways that are not
  * supported in general. Within an [either] scope, the return value is wrapped in an [ok], while any failures short-circuit the block and determine
  * the value in an [err].
+ * 
+ * @see either
  */
 class EitherScope<E, O> {
+    // ------ Failures ------
+
     /**
      * Returns the value in this [Either] if it is on the [ok] branch, otherwise fails the current [either] scope with the value in the [err] branch:
      * ```
@@ -344,12 +378,70 @@ class EitherScope<E, O> {
      */
     fun fail(e: E): Nothing =
         throw ErrPropagation(Err(e), this@EitherScope)
+
+    // ------ Deferrals ------
+
+    @PublishedApi internal val lazyDeferrals = lazy(LazyThreadSafetyMode.PUBLICATION) { ConcurrentLinkedDeque<(Either<E, O>) -> Unit>() }
+    @PublishedApi internal val deferrals by lazyDeferrals
+
+    /**
+     * Defer execution of the [block] until the end of the [either] scope, regardless of whether the latter ended successfully. Defer blocks are
+     * executed in reverse order from their definitions, to allow for the proper cleanup of resources.
+     */
+    fun defer(block: (Either<E, O>) -> Unit) {
+        deferrals.addFirst(block)
+    }
+
+    /**
+     * Defers calling [close]. If the call throws an exception, then [onException] will be called in order to provide an opportunity for
+     * mapping the exception to a modelled error. If the [onException] block is not provided, then the exception is thrown as normal. As with normal
+     * defer calls, you may use the [EitherScope]'s failure methods for modeling failures and it is passed the current response of the block.
+     * 
+     * This is defined on the closeable so that you can easily defer its closure as soon as possible after creation:
+     * ```
+     * val writer = file.writer().getOrFail().deferClose()
+     * ```
+     * 
+     * This function be thought of as a generalization of [kotlin.io.use], in that it supports the automatic closure of [AutoCloseable]s, but in
+     * a way which is compatible with [Either] semantics.
+     */
+    fun <T : AutoCloseable> T.deferClose(onException: (Either<E, O>, Exception) -> Unit = { _, ex -> throw ex }): T = apply {
+        defer { response ->
+            try {
+                close()
+            } catch (e: Exception) {
+                onException(response, e)
+            }
+        }
+    }
 }
 
 /**
  * Executes the [block] with an [EitherScope], wrapping the successful result with [ok] and wrapping any failures with [err]. Within the scope,
  * failure is managed via the extra functions provided, such as [getOrFail][EitherScope.getOrFail] and [fail][EitherScope.fail], which short-circuit
  * the block for the [err] branch.
+ * 
+ * ### Defer
+ * Within the either scope you may [defer][EitherScope.defer] a computation until the block is finished, regardless of whether it finishes with a
+ * success of failure. Defer blocks are run in reverse order from their definitions.
+ * 
+ * The response which will be returned by the [either] is passed to each deferral, allowing them to change their behavior based
+ * on it (although this is not recommended in general, as it complicates the logic). Each deferral runs within the same [scope][EitherScope] as the
+ * rest of the block, meaning that it can decide to ultimately fail using the [getOrFail][EitherScope.getOrFail] and [fail][EitherScope.fail] functions.
+ * 
+ * A deferral's failure will override a successful response from the either. If the either block itself failed, then this error is kept. If two
+ * deferrals fail, then the earliest failure in time (reverse of definition) is the one which is chosen.
+ * ```
+ * either {
+ *   val dir = fs.createDir("my-dir").getOrFail()
+ *   defer { fs.delete(dir).getOrFail() }
+ * 
+ *   val file = fs.createFile(dir, "my-file")
+ *   defer { fs.delete(file).getOrFail() }
+ * 
+ *   // Do work with file
+ * } // File will be deleted, then the directory
+ * ```
  *
  * ### Multiple nested scopes
  * While it is not recommended (because it is difficult to read), you can nest [either] scopes and break to outer ones using [with]:
@@ -365,16 +457,35 @@ class EitherScope<E, O> {
  * } // resolves to err(X)
  * ```
  */
-fun <E, O> either(block: EitherScope<E, O>.() -> O): Either<E, O> {
+inline fun <E, O> either(block: EitherScope<E, O>.() -> O): Either<E, O> {
     val scope = EitherScope<E, O>()
+    var result: Either<E, O>? = null
     try {
-        return ok(scope.block())
+        result = ok(scope.block())
     } catch (e: ErrPropagation) {
         when {
-            e.scope === scope -> return Either(e.value)
+            e.scope === scope -> result = Either(e.value)
             else -> throw e
         }
+    } finally {
+        if (scope.lazyDeferrals.isInitialized()) {
+            for (deferral in scope.deferrals) {
+                try {
+                    deferral.invoke(result!!)
+                } catch (e: ErrPropagation) {
+                    when {
+                        e.scope === scope -> {
+                            if (result?.isErr != true) {
+                                result = Either(e.value)
+                            }
+                        }
+                        else -> throw e
+                    }
+                }
+            }
+        }
     }
+    return result
 }
 
 // ------ Dealing with exceptions ------
@@ -383,14 +494,14 @@ fun <E, O> either(block: EitherScope<E, O>.() -> O): Either<E, O> {
  * Throws an [IllegalStateException] with the given [message] if this is an [err], otherwise returns the [ok].
  * If the [err] is an instance of [Exceptional], then its exception is used to populate the cause of the thrown exception.
  */
-inline fun <E, O> Either<E, O>.getOrThrow(message: (E) -> String = { "Unexpected error: $it" }): O =
+fun <E, O> Either<E, O>.getOrThrow(message: (E) -> String = { "Unexpected error: $it" }): O =
     getOr { throw IllegalStateException(message(it), (it as? Exceptional)?.exception) }
 
 /**
  * A version of [either] which catches and wraps all non-fatal exceptions. Ideally used when interoperating with existing code which is
  * known to throw exceptions rather than work with [Either]s.
  */
-inline fun <O> eitherCatching(block: () -> O): Either<Exception, O> =
+fun <O> eitherCatching(block: () -> O): Either<Exception, O> =
     try {
         ok(block())
     } catch (e: Exception) {
