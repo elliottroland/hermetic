@@ -17,16 +17,39 @@ interface Exceptional {
  * errors to one another via cause or suppression relationships.
  * 
  * You can optionally hide the stack trace, which is useful for avoiding cluttering up stack traces with
- * many instances of this class. See [FinalizationError] for an example.
+ * many instances of this class. See [ErrsAsException] for an example.
  */
-data class ErrAsException(val error: Any, val hideStackTrace: Boolean = false) : IllegalStateException(), Exceptional {
+class ErrAsException(val error: Any, val hideStackTrace: Boolean = false) : IllegalStateException(), Exceptional {
     override val exception = this
-    override val message = "ErrAsException $error"
+    override val message = "Err $error"
     override fun toString() = message
 
     init {
+        val exceptional = (error as? Exceptional).exception
+
+
         if (hideStackTrace) {
             stackTrace = emptyArray<StackTraceElement>()
+        }
+    }
+}
+
+/**
+ * Wraps multiple errors together into a single exception with the given [message]. The errors are represented
+ * as suppressions on the overarching exception so that they can still be seen.
+ */
+class ErrsAsException(
+    message: String,
+    errors: List<Any>,
+    onlyExceptionStackTraces: Boolean
+) : IllegalStateException(message) {
+    init {
+        for (error in errors) {
+            if (error is Throwable) {
+                addSuppressed(error)
+            } else {
+                addSuppressed(ErrAsException(error, hideStackTrace = onlyExceptionStackTraces))
+            }
         }
     }
 }

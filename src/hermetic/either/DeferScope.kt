@@ -85,6 +85,13 @@ open class DeferScope<R, BlockScope : DeferBlockScope> {
                 }
             }
         }
+
+    fun <E, F : Finalizable<E>> F.deferFinalize(onError: (R, E) -> Unit): F =
+        apply {
+            defer { response ->
+                finalize()?.also { onError(response, it) }
+            }
+        }
 }
 
 @DeferMarker

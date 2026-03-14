@@ -3,37 +3,39 @@ package hermetic.either
 import hermetic.either.FinalizedResult
 import hermetic.either.FinalizationException
 
+/**
+ * An alternative of [AutoCloseable] which allows the implementation to specify a failure mode for the [finalize] method (the equivalent
+ * to [AutoCloseable.close]) without throwing an exception. For interoperability with use cases that require an [AutoCloseable], the
+ * [toAutoCloseable] function is provided.
+ */
 interface Finalizable<out E> {
+    /**
+     * Cleans the resources attached to this [Finalizable], possibly returning an error if something goes wrong.
+     */
     fun finalize(): E?
-    fun toCloseable(throwErr: Boolean = false): AutoCloseable = AutoCloseableFinalizable(this, throwErr)
-}
 
-open class FinalizationException(message: String, errors: List<Any> = emptyList()) : IllegalStateException(message) {
-    init {
-        for (error in errors) {
-            if (error is Throwable) {
-                addSuppressed(error)
-            } else {
-                addSuppressed(ErrAsException(error))
-            }
-        }
-    }
+    /**
+     * Returns an [AutoCloseable] which will call [finalize] when [close]d. By default, if an error occurs during the [finalize] call it
+     * will be ignored, but this can be changed by setting [throws] to true.
+     */
+    fun toAutoCloseable(throws: Boolean = false): AutoCloseable =
+        AutoCloseableFinalizable(this, throwErr)
 }
 
 fun <F : Finalizable<E>, E, R> F.use(block: (F) -> R): FinalizedResult<E, R> {
     var result: FinalizedResult<E, R>? = null
     try {
-        result = FinalizedResult(block(this))
+        result = FinalizedResult(null, block(this))
         return result
     } finally {
-        result?.error = finalize()
+        val error = finalize()
+        if (error != null) {
+            result = FinalizedResult(error, result.result)
+        }
     }
 }
 
-class FinalizedResult<E, R>(val result: R, error: E? = null) {
-    var error: E? = error
-        internal set
-    
+data class FinalizedResult<E, R>(val error: E?, val result: R) {
     fun onErr(block: (E) -> Unit) = apply { error?.also { block(it) } }
 
     operator fun component1(): E? = error
@@ -46,14 +48,12 @@ class FinalizedResult<E, R>(val result: R, error: E? = null) {
             null -> "FinalizedResult($result)"
             else -> "FinalizedResult($result, error=$error)"
         }
-    override fun hashCode() = result.hashCode()
-    override fun equals(other: Any?) = other is FinalizedResult<*, *> && result == other.result && error == other.error
 }
 
-class AutoCloseableFinalizable(val finalizable: Finalizable<*>, val throwErr: Boolean) : AutoCloseable {
+class AutoCloseableFinalizable(val finalizable: Finalizable<*>, val throws: Boolean) : AutoCloseable {
     override fun close() {
         val error = finalizable.finalize()
-        if (throwErr && error != null) {
+        if (throws && error != null) {
             err(error).getOrThrow { "Unexpected error when finalizing $finalizable: $it" }
         }
     }
