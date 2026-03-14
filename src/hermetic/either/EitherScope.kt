@@ -1,5 +1,8 @@
 package hermetic.either
 
+import hermetic.DeferScope
+import hermetic.DeferBlockScope
+
 /**
  * Executes the [block] with an [EitherScope], wrapping the successful result with [ok] and wrapping
  * any failures with [err]. Within the scope, failure is managed via the extra functions provided,
@@ -80,7 +83,7 @@ inline fun <E, O> either(block: EitherDeferScope<E, O>.() -> O): Either<E, O> {
 
 
 /** See [EitherScope] for details on how this is used. */
-@PublishedApi internal class ErrPropagation(val value: Err<*>, val scope: EitherScope<*, *>) : Throwable(null, null, false, false)
+@PublishedApi internal class ErrPropagation(val value: ErrMarker<*>, val scope: EitherScope<*, *>) : Throwable(null, null, false, false)
 
 interface EitherScope<E, O> : DeferBlockScope {
     /**
@@ -148,5 +151,5 @@ class EitherDeferScope<E, O> : EitherScope<E, O>, DeferScope<Either<E, O>, Eithe
         getOr { fail(mapper(it)) }
 
     override fun fail(e: E): Nothing =
-        throw ErrPropagation(Err(e), this@EitherDeferScope)
+        throw ErrPropagation(ErrMarker(e), this@EitherDeferScope)
 }

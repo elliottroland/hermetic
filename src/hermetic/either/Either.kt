@@ -78,8 +78,8 @@ package hermetic.either
  */
 @JvmInline
 value class Either<out E, out O> @PublishedApi internal constructor(@PublishedApi internal val value: Any?) {
-    val isErr: Boolean get() = value is Err<*>
-    val isOk: Boolean get() = value !is Err<*>
+    val isErr: Boolean get() = value is ErrMarker<*>
+    val isOk: Boolean get() = value !is ErrMarker<*>
 
     override fun toString() = fold({ "ok($it)" }, { "err($it)" })
 
@@ -88,7 +88,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
      */
     @Suppress("UNCHECKED_CAST")
     inline fun <K> fold(ifOk: (O) -> K, ifErr: (E) -> K): K =
-        if (value is Err<*>) ifErr(value.value as E) else ifOk(value as O)
+        if (value is ErrMarker<*>) ifErr(value.value as E) else ifOk(value as O)
 
     /**
      * Run the [block] if this [Either] is [ok], otherwise do nothing, then return this.
@@ -106,7 +106,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
     @Suppress("UNCHECKED_CAST")
     fun onErr(block: (E) -> Unit): Either<E, O> = apply {
         if (isErr) {
-            block((value as Err<E>).value)
+            block((value as ErrMarker<E>).value)
         }
     }
 
@@ -135,7 +135,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
 /**
  * An instance of [Either] which represents the expected outcome of a computation.
  */
-@PublishedApi internal data class Err<out E>(val value: E)
+@PublishedApi internal data class ErrMarker<out E>(val value: E)
 
 // ------ "Constructors" ------
 
@@ -151,7 +151,7 @@ fun <T> ok(t: T): Either<Nothing, T> = Either(t)
  *
  * The recovery functions ([recover], [recoverIf], [recoverToNullIf]) are designed to allow this branch to map back to the [ok] branch.
  */
-fun <T> err(t: T): Either<T, Nothing> = Either(Err(t))
+fun <T> err(t: T): Either<T, Nothing> = Either(ErrMarker(t))
 
 // ------ Getting ------
 
@@ -322,7 +322,7 @@ fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?
  */
 fun <E : Any, O> Either<E, O>.getOrThrow(message: (E) -> String = { it.toString() }): O =
     // TODO: need to use message
-    getOr { err -> throw hermetic.Err.throwable(err) }
+    getOr { err -> throw hermetic.Err.wrap(err) }
 
 /**
  * A version of [either] which catches and wraps all non-fatal exceptions. Ideally used when interoperating with existing code which is

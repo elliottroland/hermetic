@@ -1,4 +1,4 @@
-package hermetic
+package hermetic.experiments
 
 import hermetic.either.*
 

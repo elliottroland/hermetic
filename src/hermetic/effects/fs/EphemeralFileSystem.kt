@@ -1,6 +1,6 @@
 package hermetic.effects.fs
 
-import hermetic.clearStackTrace
+import hermetic.*
 import hermetic.either.*
 import hermetic.effects.*
 import java.io.*

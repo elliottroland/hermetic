@@ -1,4 +1,4 @@
-package hermetic
+package hermetic.experiments
 
 import hermetic.either.*
 
@@ -13,9 +13,9 @@ fun sayHelloSealed(fx: SayHelloRun, name: String): Either<InvalidName, Unit> = w
 }
 
 sealed interface SayHelloEff<out Effect> {
-    object Time : SayHelloEff<hermetic.Time>
-    object Log : SayHelloEff<hermetic.Log>
-    object Sleeper : SayHelloEff<hermetic.Sleeper>
+    object Time : SayHelloEff<hermetic.experiments.Time>
+    object Log : SayHelloEff<hermetic.experiments.Log>
+    object Sleeper : SayHelloEff<hermetic.experiments.Sleeper>
 }
 
 interface SayHelloRun {

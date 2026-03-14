@@ -1,20 +1,23 @@
 package hermetic
 
+/**
+ * The recommended way of managing errors is through the err branch of the [Either][hermetic.either.Either].
+ */
 open class Err : IllegalStateException {
-    constructor() : super()
-    constructor(message: String) : super(message)
-    constructor(message: String, cause: Throwable?) : super(message, cause)
-    constructor(cause: Throwable) : super(cause)
-    constructor(errors: List<Any>) : this("Encountered ${errors.size} errors (see suppressed)", errors)
-    constructor(message: String, errors: List<Any>) : this(message) {
+    protected constructor() : super()
+    protected constructor(message: String) : super(message)
+    protected constructor(message: String, cause: Throwable?) : super(message, cause)
+    protected constructor(cause: Throwable) : super(cause)
+    protected constructor(errors: List<Any>) : this("Encountered ${errors.size} errors (see suppressed)", errors)
+    protected constructor(message: String, errors: List<Any>) : this(message) {
         for (error in errors) {
-            addSuppressed(throwable(error))
+            addSuppressed(wrap(error))
         }
     }
-    constructor(error: Any) : super(error.toString())
+    protected constructor(error: Any) : super(error.toString())
 
     companion object {
-        fun throwable(error: Any): Throwable =
+        fun wrap(error: Any): Throwable =
             when (error) {
                 is Throwable -> error
                 is String -> Err(error).clearStackTrace()
@@ -27,5 +30,5 @@ open class Err : IllegalStateException {
 fun <E : Err> E.clearStackTrace(): E = apply { stackTrace = emptyArray() }
 
 fun main() {
-    throw Err(listOf(1, 2, "Hello", 4, IllegalStateException()))
+    throw Err.wrap(listOf(1, 2, "Hello", 4, IllegalStateException()))
 }

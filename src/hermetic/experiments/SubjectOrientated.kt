@@ -1,4 +1,4 @@
-package hermetic
+package hermetic.experiments
 
 class SubjectiveLogger(val name: String)
 

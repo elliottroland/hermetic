@@ -1,7 +1,8 @@
-package hermetic.either
+package hermetic
 
 import hermetic.effects.*
 import hermetic.effects.fs.*
+import hermetic.either.*
 import java.util.concurrent.ConcurrentLinkedDeque
 import kotlin.io.writer
 

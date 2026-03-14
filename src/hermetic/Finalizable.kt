@@ -1,4 +1,6 @@
-package hermetic.either
+package hermetic
+
+import hermetic.either.*
 
 /**
  * An alternative of [AutoCloseable] which allows the implementation to specify a failure mode for the [finalize] method (the equivalent
