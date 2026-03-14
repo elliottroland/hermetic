@@ -25,35 +25,36 @@ interface RestrictedFileSystem : FileSystem {
 
 open class DefaultRestrictedFileSystem(private val rootDir: Dir, private val gfs: GlobalFileSystem) : RestrictedFileSystem {
     override fun rootDir(): Dir = rootDir
-
-    override fun ephemeral(): EphemeralFileSystem = DefaultEphemeralFileSystem(this)
     
-    override fun get(path: Path): Either<GetError, FileOrDir> =
+    override fun get(path: Path) =
         gfs.get(resolve(path))
     
-    override fun createFile(path: Path, mkdirs: Boolean): Either<CreateError, File> =
+    override fun createFile(path: Path, mkdirs: Boolean) =
         gfs.createFile(resolve(path), mkdirs)
 
-    override fun createTempFile(dir: Dir, prefix: String, suffix: String): Either<CreateError, File> =
+    override fun createTempFile(dir: Dir, prefix: String, suffix: String) =
         gfs.createTempFile(resolve(dir), prefix, suffix)
 
-    override fun createDir(path: Path, mkdirs: Boolean): Either<CreateError, Dir> =
+    override fun createDir(path: Path, mkdirs: Boolean) =
         gfs.createDir(resolve(path), mkdirs)
 
-    override fun delete(ford: FileOrDir): Either<DeleteError, Boolean> =
+    override fun delete(ford: FileOrDir) =
         gfs.delete(resolve(ford))
 
-    override fun inputStream(file: File): Either<FileError, InputStream> =
+    override fun inputStream(file: File) =
         gfs.inputStream(resolve(file))
 
-    override fun outputStream(file: File): Either<FileError, OutputStream> =
+    override fun outputStream(file: File) =
         gfs.outputStream(resolve(file))
 
-    override fun walk(dir: Dir, maxDepth: Int, direction: FileWalkDirection, shouldEnter: (Dir) -> Boolean): Sequence<FileOrDir> =
+    override fun walk(dir: Dir, maxDepth: Int, direction: FileWalkDirection, shouldEnter: (Dir) -> Boolean) =
         gfs.walk(resolve(dir), maxDepth, direction, shouldEnter)
 
-    override fun restrictFs(rootDir: Dir): RestrictedFileSystem =
+    override fun restrictFs(rootDir: Dir) =
         gfs.restrictFs(resolve(rootDir))
+
+    override fun ephemeral() =
+        DefaultEphemeralFileSystem(this)
 
     /**
      * Converts the [path] to something starting with the [rootDir]'s path.

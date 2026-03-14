@@ -11,9 +11,11 @@ import kotlin.io.*
 /**
  * A [RestrictedFileSystem] which deletes all files created through it when closed.
  */
-interface EphemeralFileSystem : RestrictedFileSystem, Finalizable<EphemeralFinalizeError>
+interface EphemeralFileSystem : RestrictedFileSystem, Finalizable<DeleteEphemeralError> {
+    class FinalizationError(val errors: List<DeleteError>) : ErrsAsException(errors)
+}
 
-data class EphemeralFinalizeError(val errors: List<DeleteError>) : ErrsAsException(errors) {
+class DeleteEphemeralError(val errors: List<DeleteError>) : ErrsAsException(errors) {
     override val message = "Ephemeral file system could not clean up all resources"
 }
 
@@ -23,41 +25,61 @@ class DefaultEphemeralFileSystem(private val rfs: RestrictedFileSystem) : Epheme
     override fun rootDir(): Dir = rfs.rootDir()
     override fun ephemeral(): EphemeralFileSystem = this
 
-    override fun get(path: Path): Either<GetError, FileOrDir> = rfs.get(path)
-    override fun delete(ford: FileOrDir): Either<DeleteError, Boolean> = rfs.delete(ford)
-    override fun inputStream(file: File): Either<FileError, InputStream> = rfs.inputStream(file)
-    override fun outputStream(file: File): Either<FileError, OutputStream> = rfs.outputStream(file)
-    override fun walk(dir: Dir, maxDepth: Int, direction: FileWalkDirection, shouldEnter: (Dir) -> Boolean): Sequence<FileOrDir> = rfs.walk(dir, maxDepth, direction, shouldEnter)
-    override fun restrictFs(rootDir: Dir): EphemeralFileSystem = rfs.restrictFs(rootDir).ephemeral()
+    override fun get(path: Path) = rfs.get(path)
+    override fun delete(ford: FileOrDir) = rfs.delete(ford)
+    override fun inputStream(file: File) = rfs.inputStream(file)
+    override fun outputStream(file: File) = rfs.outputStream(file)
+    override fun walk(dir: Dir, maxDepth: Int, direction: FileWalkDirection, shouldEnter: (Dir) -> Boolean) =
+        rfs.walk(dir, maxDepth, direction, shouldEnter)
+    override fun restrictFs(rootDir: Dir): EphemeralFileSystem =
+        rfs.restrictFs(rootDir).ephemeral()
 
-    override fun createFile(path: Path, mkdirs: Boolean): Either<CreateError, File> =
+    override fun createFile(path: Path, mkdirs: Boolean) =
         rfs.createFile(path, mkdirs).onOk { toDelete.addFirst(it) }
 
-    override fun createTempFile(dir: Dir, prefix: String, suffix: String): Either<CreateError, File> =
+    override fun createTempFile(dir: Dir, prefix: String, suffix: String) =
         rfs.createTempFile(dir, prefix, suffix).onOk { toDelete.addFirst(it) }
 
-    override fun createDir(path: Path, mkdirs: Boolean): Either<CreateError, Dir> =
+    override fun createDir(path: Path, mkdirs: Boolean) =
         rfs.createDir(path, mkdirs).onOk { toDelete.addFirst(it) }
 
-    override fun finalize(): EphemeralFinalizeError? {
+    override fun finalize(): DeleteEphemeralError? {
         val errors = mutableListOf<DeleteError>()
         for (ford in toDelete) {
-            println("Deleting $ford")
-            delete(ford).also { println("Result: $it") }.onErr { errors.add(it) }
+            delete(ford).onErr { errors.add(clearStackTrace(it)) }
         }
         if (errors.isEmpty()) {
             return null
         }
-        return EphemeralFinalizeError(errors)
+        return DeleteEphemeralError(errors)
     }
 }
 
 fun main() {
     val gfs = GlobalFileSystem()
-    val root = gfs.createDir("my-test-dir").getOrThrow()
-    val efs = gfs.restrictFs(root).ephemeral()
-    val dir = efs.createDir("some-dir").getOrThrow()
-    val file = efs.createFile(dir, "some-file").getOrThrow()
-    gfs.createFile(dir.path.absolute.resolve("some-other-file")).getOrThrow()
-    println(efs.finalize()?.also { throw it })
+    val root = gfs.getOrCreateDir("efs-root").getOrThrow()
+    gfs.restrictFs(root).ephemeral().use { efs ->
+        context(efs, LoggingConsole()) {
+            ephemeralProblem(gfs)
+        }
+    }.toEither().getOrThrow().also { println(it) }
+}
+
+context(fs: EphemeralFileSystem, _: Logging)
+fun ephemeralProblem(gfs: GlobalFileSystem) = defers {
+    val log = Log("effects.fs.ephemeralProblem")
+
+    val dir = fs.createDir("some-dir").getOrThrow()
+    defer {
+        log.info("Deleting dir in defer: $dir")
+        fs.delete(dir).also { log.info(it) }.getOrThrow()
+    }
+
+    gfs.createFile(dir.absolute, "persistent-file").getOrThrow()
+
+    val file = fs.createFile(dir, "some-file").getOrThrow()
+    defer {
+        log.info("Deleting file in defer: $file")
+        fs.delete(file).also { log.info(it) }.getOrThrow()
+    }
 }

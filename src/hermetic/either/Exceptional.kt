@@ -20,7 +20,6 @@ import kotlin.emptyArray
  */
 open class ErrAsException(val error: Any, val generateStackTrace: Boolean = false) : IllegalStateException() {
     override val message = "ERR $error"
-    override fun toString() = message
 
     init {
         if (!generateStackTrace) {
@@ -41,8 +40,12 @@ open class ErrsAsException(message: String, errors: List<Any>, generateStackTrac
             addSuppressed(throwable(error, generateStackTraces))
         }
     }
+}
 
-    fun clearStackTrace() = apply { this.stackTrace = emptyArray() }
+fun <T> clearStackTrace(t: T): T = t.apply {
+    if (this is Throwable) {
+        this.stackTrace = emptyArray()
+    }
 }
 
 fun throwable(error: Any, generateStackTrace: Boolean = false): Throwable =

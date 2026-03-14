@@ -74,7 +74,11 @@ class GlobalFileSystem(private val async: Async? = null) : FileSystem {
 
     override fun delete(ford: FileOrDir): Either<DeleteError, Boolean> =
         try {
-            ok(ford.java.delete())
+            when {
+                !ford.java.exists() -> ok(false)
+                !ford.java.delete() -> err(PathStillExists(ford.path))
+                else -> ok(true)
+            }
         } catch (e: SecurityException) {
             err(PermissionDenied(ford.path, e))
         } catch (e: IOException) {

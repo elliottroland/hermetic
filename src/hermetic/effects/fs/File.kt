@@ -91,6 +91,7 @@ class File internal constructor(override val java: JFile) : FileOrDir {
 
 class Dir internal constructor(override val java: JFile) : FileOrDir {
     override val path by lazy { Path(java.toPath()) }
+    val absolute get() = Dir(path.absolute.java.toFile())
 
     context(fs: FileSystem)
     fun files() = fs.listFiles(this)

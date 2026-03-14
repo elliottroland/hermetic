@@ -53,3 +53,9 @@ data class IOError(
 ) : FileError, DeleteError, Exception() {
     override fun toString() = "IOError(${path.java})"
 }
+
+data class PathStillExists(
+    override val path: Path
+) : DeleteError, Exception() {
+    override fun toString() = "PathStillExists(${path.java})"
+}

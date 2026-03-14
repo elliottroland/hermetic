@@ -28,12 +28,12 @@ fun <F : Finalizable<E>, E, R> F.use(block: (F) -> R): FinalizedResult<E, R> {
         val error = finalize()
         val res = result?.result // If this is null, then we encountered an exception
         if (error != null && res != null) {
-            result = FinalizedResult(error, res)
+            return FinalizedResult(error, res)
         }
     }
 }
 
-data class FinalizedResult<E, R>(val error: E?, val result: R) {
+class FinalizedResult<E, R>(val error: E?, val result: R) {
     fun onErr(block: (E) -> Unit) = apply { error?.also { block(it) } }
     fun toEither(): Either<E, R> = error?.let { err(it) } ?: ok(result)
 

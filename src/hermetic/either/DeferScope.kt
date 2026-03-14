@@ -17,8 +17,10 @@ import kotlin.io.writer
 inline fun <R> defers(block: DeferScope<R?, EmptyDeferBlockScope>.() -> R): R {
     val scope = DeferScope<R?, EmptyDeferBlockScope>()
     var result: R? = null
+    var succeeded = false
     try {
         result = scope.block()
+        succeeded = true
         return result
     } finally {
         if (scope.hasDeferrals()) {
@@ -27,7 +29,7 @@ inline fun <R> defers(block: DeferScope<R?, EmptyDeferBlockScope>.() -> R): R {
                 try {
                     EmptyDeferBlockScope.deferral(result)
                 } catch (e: Exception) {
-                    if (deferError == null && result == null) {
+                    if (deferError == null && succeeded) {
                         deferError = e
                     }
                 }
