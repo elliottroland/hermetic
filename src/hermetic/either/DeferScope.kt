@@ -106,12 +106,12 @@ annotation class DeferMarker
 fun main() {
     val fs = GlobalFileSystem(null)
     val root = fs.getOrCreateDir("deferTest").getOrThrow()
-    context(fs.restrictFs(root), WriteLogConsole()) {
+    context(fs.restrictFs(root), LoggingConsole()) {
         println(testDefer().getOrThrow())
     }
 }
 
-context(fs: FileSystem, _: WriteLog)
+context(fs: FileSystem, _: Logging)
 fun testDefer(): Either<String, Long> = either {
     val log = Log("testDefer")
 

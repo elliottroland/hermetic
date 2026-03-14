@@ -1,8 +1,5 @@
 package hermetic.either
 
-import hermetic.either.FinalizedResult
-import hermetic.either.FinalizationException
-
 /**
  * An alternative of [AutoCloseable] which allows the implementation to specify a failure mode for the [finalize] method (the equivalent
  * to [AutoCloseable.close]) without throwing an exception. For interoperability with use cases that require an [AutoCloseable], the
@@ -19,7 +16,7 @@ interface Finalizable<out E> {
      * will be ignored, but this can be changed by setting [throws] to true.
      */
     fun toAutoCloseable(throws: Boolean = false): AutoCloseable =
-        AutoCloseableFinalizable(this, throwErr)
+        AutoCloseableFinalizable(this, throws)
 }
 
 fun <F : Finalizable<E>, E, R> F.use(block: (F) -> R): FinalizedResult<E, R> {
@@ -29,18 +26,15 @@ fun <F : Finalizable<E>, E, R> F.use(block: (F) -> R): FinalizedResult<E, R> {
         return result
     } finally {
         val error = finalize()
-        if (error != null) {
-            result = FinalizedResult(error, result.result)
+        val res = result?.result // If this is null, then we encountered an exception
+        if (error != null && res != null) {
+            result = FinalizedResult(error, res)
         }
     }
 }
 
 data class FinalizedResult<E, R>(val error: E?, val result: R) {
     fun onErr(block: (E) -> Unit) = apply { error?.also { block(it) } }
-
-    operator fun component1(): E? = error
-    operator fun component2(): R = result
-
     fun toEither(): Either<E, R> = error?.let { err(it) } ?: ok(result)
 
     override fun toString() =

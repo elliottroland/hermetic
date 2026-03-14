@@ -8,27 +8,22 @@ import kotlin.emptyArray
  * to know when specific failure types actually encode a [Throwable], so that for example
  * logging can be enriched.
  */
-interface Exceptional {
-    val exception: Throwable?
-}
+// interface Exceptional {
+//     val message: String get() = "ERR $this"
+//     val cause: Throwable? get() = null
+//     val stackTrace: Array<StackTraceElement> get() = emptyArray()
+// }
 
 /**
  * Wraps a non-exception error as an exception. Can be useful for tracking failure points and connecting
  * errors to one another via cause or suppression relationships.
- * 
- * You can optionally hide the stack trace, which is useful for avoiding cluttering up stack traces with
- * many instances of this class. See [ErrsAsException] for an example.
  */
-class ErrAsException(val error: Any, val hideStackTrace: Boolean = false) : IllegalStateException(), Exceptional {
-    override val exception = this
-    override val message = "Err $error"
+open class ErrAsException(val error: Any, val generateStackTrace: Boolean = false) : IllegalStateException() {
+    override val message = "ERR $error"
     override fun toString() = message
 
     init {
-        val exceptional = (error as? Exceptional).exception
-
-
-        if (hideStackTrace) {
+        if (!generateStackTrace) {
             stackTrace = emptyArray<StackTraceElement>()
         }
     }
@@ -38,18 +33,25 @@ class ErrAsException(val error: Any, val hideStackTrace: Boolean = false) : Ille
  * Wraps multiple errors together into a single exception with the given [message]. The errors are represented
  * as suppressions on the overarching exception so that they can still be seen.
  */
-class ErrsAsException(
-    message: String,
-    errors: List<Any>,
-    onlyExceptionStackTraces: Boolean
-) : IllegalStateException(message) {
+open class ErrsAsException(message: String, errors: List<Any>, generateStackTraces: Boolean = false) : ErrAsException(message, generateStackTrace = true) {
+    constructor(errors: List<Any>, generateStackTraces: Boolean = false) : this("Unexpected error", errors, generateStackTraces)
+
     init {
         for (error in errors) {
-            if (error is Throwable) {
-                addSuppressed(error)
-            } else {
-                addSuppressed(ErrAsException(error, hideStackTrace = onlyExceptionStackTraces))
-            }
+            addSuppressed(throwable(error, generateStackTraces))
         }
     }
+
+    fun clearStackTrace() = apply { this.stackTrace = emptyArray() }
 }
+
+fun throwable(error: Any, generateStackTrace: Boolean = false): Throwable =
+    when {
+        error is Throwable -> error
+        else -> ErrAsException(error, generateStackTrace)
+    }
+
+// fun throwable(message: String, errors: List<Error>, generateStackTraces: Boolean = false): Throwable =
+//     ErrsAsException(message, errors, generateStackTraces).also {
+//         if (!generateStackTraces) { it.clearStackTrace() }
+//     }

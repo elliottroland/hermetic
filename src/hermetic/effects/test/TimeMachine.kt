@@ -16,19 +16,19 @@ class TimeMachine(private var instant: Instant = Instant.now()) : ReadTime, Wait
 fun main() {
     val log = Log("effects.test.TimeMachine")
 
-    context(WriteLogConsole(), TimeMachine()) {
+    context(LoggingConsole(), TimeMachine()) {
         log.info("With time machine")
         f()
     }
 
-    context(WriteLogConsole(), ReadTimeDefault(), WaitDefault()) {
+    context(LoggingConsole(), ReadTimeDefault(), WaitDefault()) {
         log.info("")
         log.info("Without time machine")
         f()
     }
 }
 
-context(_: WriteLog, _: ReadTime, _: Wait)
+context(_: Logging, _: ReadTime, _: Wait)
 fun f() {
     log.info("Time before wait: ${now()}")
     waitMillis(10_000)

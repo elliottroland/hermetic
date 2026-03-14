@@ -1,7 +1,7 @@
 package hermetic.effects.fs
 
 import hermetic.either.*
-import hermetic.effects.Async
+import hermetic.effects.*
 import java.io.*
 import java.nio.file.*
 import java.nio.charset.*
@@ -13,7 +13,9 @@ import kotlin.io.*
  */
 interface EphemeralFileSystem : RestrictedFileSystem, Finalizable<EphemeralFinalizeError>
 
-data class EphemeralFinalizeError(val errors: List<DeleteError>, override val exception: FinalizationException) : Exceptional
+data class EphemeralFinalizeError(val errors: List<DeleteError>) : ErrsAsException(errors) {
+    override val message = "Ephemeral file system could not clean up all resources"
+}
 
 class DefaultEphemeralFileSystem(private val rfs: RestrictedFileSystem) : EphemeralFileSystem {
     private val toDelete = ConcurrentLinkedDeque<FileOrDir>()
@@ -46,8 +48,7 @@ class DefaultEphemeralFileSystem(private val rfs: RestrictedFileSystem) : Epheme
         if (errors.isEmpty()) {
             return null
         }
-        val exception = FinalizationException("Ephemeral file system could not clean up all resources", errors)
-        return EphemeralFinalizeError(errors, exception)
+        return EphemeralFinalizeError(errors)
     }
 }
 
@@ -58,5 +59,5 @@ fun main() {
     val dir = efs.createDir("some-dir").getOrThrow()
     val file = efs.createFile(dir, "some-file").getOrThrow()
     gfs.createFile(dir.path.absolute.resolve("some-other-file")).getOrThrow()
-    println(efs.finalize()?.also { throw it.exception })
+    println(efs.finalize()?.also { throw it })
 }

@@ -320,8 +320,9 @@ fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?
  * Throws an [IllegalStateException] with the given [message] if this is an [err], otherwise returns the [ok].
  * If the [err] is an instance of [Exceptional], then its exception is used to populate the cause of the thrown exception.
  */
-fun <E, O> Either<E, O>.getOrThrow(message: (E) -> String = { "Unexpected error: $it" }): O =
-    getOr { throw IllegalStateException(message(it), (it as? Exceptional)?.exception) }
+fun <E : Any, O> Either<E, O>.getOrThrow(message: (E) -> String = { it.toString() }): O =
+    // TODO: need to use message
+    getOr { err -> throw throwable(err) }
 
 /**
  * A version of [either] which catches and wraps all non-fatal exceptions. Ideally used when interoperating with existing code which is

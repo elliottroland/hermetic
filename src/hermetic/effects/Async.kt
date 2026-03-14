@@ -7,7 +7,7 @@ import java.util.UUID
 val log = Log("effects.Async")
 
 fun main() {
-    context(AsyncDefault(), WriteLogConsole(), WaitDefault()) {
+    context(AsyncDefault(), LoggingConsole(), WaitDefault()) {
         async { sayHello("Roland") }
         log.info("Computing async")
         val sum = async(waitForStart = true) { log.info("Async started"); 1 + 2 }
@@ -17,7 +17,7 @@ fun main() {
         log.info("Result: $result")
     }
 
-    // val result = context(WriteLogConsole(), AsyncLazy()) {
+    // val result = context(LoggingConsole(), AsyncLazy()) {
     //     val sum = async { 1 + 2 }
     //     log.info(sum.await())
 
@@ -30,7 +30,7 @@ fun main() {
     // }
 }
 
-context(_: Async, _: WriteLog, _: Wait)
+context(_: Async, _: Logging, _: Wait)
 fun runForever(): Awaitable<Nothing> =
     async {
         while (true) {
@@ -40,7 +40,7 @@ fun runForever(): Awaitable<Nothing> =
         nothing()
     }
 
-context(_: Wait, _: WriteLog)
+context(_: Wait, _: Logging)
 fun sayHello(name: String) {
     waitMillis(1_000)
     log.info("Hello, $name!")
@@ -59,9 +59,9 @@ interface Async {
     fun cancel(async: Awaitable<*>, reason: String?)
 
     sealed interface Failure {
-        data class Timeout(override val exception: Throwable) : Failure, Exceptional
-        data class Cancelled(override val exception: Throwable) : Failure, Exceptional
-        data class Unknown(override val exception: Throwable) : Failure, Exceptional
+        data class Timeout(override val cause: Throwable) : Failure, Exception()
+        data class Cancelled(override val cause: Throwable) : Failure, Exception()
+        data class Unknown(override val cause: Throwable) : Failure, Exception()
     }
 }
 
@@ -152,8 +152,10 @@ class AsyncDefault(
  * can be re-awaited multiple times, but the same result will be returned.
  */
 class AsyncLazy : Async {
-    override fun <R> async(waitForStart: Boolean, block: () -> R): Awaitable<R> =
-        LazyAwaitable(block)
+    override fun <R> async(waitForStart: Boolean, block: () -> R): Awaitable<R> {
+        check(!waitForStart) { "Lazy async will never start" }
+        return LazyAwaitable(block)
+    }
     
     override fun <R> await(async: Awaitable<R>, timeoutMillis: Long): Either<Async.Failure, R> {
         require(async is LazyAwaitable<R>)

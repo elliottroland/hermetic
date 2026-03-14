@@ -22,12 +22,12 @@ class RandomDefault : Random {
 }
 
 fun main() {
-    context(RandomDefault(), WriteLogConsole()) {
+    context(RandomDefault(), LoggingConsole()) {
         f()
     }
 }
 
-context(_: WriteLog, r: Random)
+context(_: Logging, r: Random)
 fun f() {
     val log = Log("effects.Random")
     log.info("Random number: ${randomInt()}")

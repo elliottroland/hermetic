@@ -25,9 +25,9 @@ data class ParentPathDoesNotExist(override val path: Path) : CreateError, Delete
 
 data class PermissionDenied(
     override val path: Path,
-    override val exception: SecurityException
-) : GetError, CreateError, DeleteError, FileError, Exceptional {
-    override fun toString() = "PermissionDenied(${path.java}, $exception)"
+    override val cause: SecurityException
+) : GetError, CreateError, DeleteError, FileError, Exception() {
+    override fun toString() = "PermissionDenied(${path.java})"
 }
 
 data class PathIsDir(val dir: Dir) : GetError, CreateError {
@@ -42,14 +42,14 @@ data class PathIsFile(val file: File) : GetError, CreateError {
 
 data class PathDoesNotExist(
     override val path: Path,
-    override val exception: FileNotFoundException?
-) : GetError, DeleteError, FileError, Exceptional {
-    override fun toString() = "PathDoesNotExist(${path.java}${ if (exception != null) ", $exception" else "" })"
+    override val cause: FileNotFoundException?
+) : GetError, DeleteError, FileError, Exception() {
+    override fun toString() = "PathDoesNotExist(${path.java})"
 }
 
 data class IOError(
     override val path: Path,
-    override val exception: IOException
-) : FileError, DeleteError, Exceptional {
-    override fun toString() = "IOError(${path.java}, $exception)"
+    override val cause: IOException
+) : FileError, DeleteError, Exception() {
+    override fun toString() = "IOError(${path.java})"
 }

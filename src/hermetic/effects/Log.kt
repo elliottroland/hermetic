@@ -5,41 +5,34 @@ import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant
 
-interface WriteLog {
+interface Logging {
     fun write(log: Log, level: Log.Level, message: String?, error: Throwable?)
 }
 
 data class Log(val name: String) {
+    context(logger: Logging)
+    fun info(message: Any) =
+        logger.write(this, Log.Level.INFO, message.toString(), null)
+
+    context(logger: Logging)
+    fun error(message: Any? = null, exception: Throwable? = null) =
+        if (message is Throwable) {
+            error(message)
+        } else {
+            logger.write(this, Log.Level.ERROR, message?.toString(), exception)
+        }
+
+    context(logger: Logging)
+    fun error(failure: Throwable) =
+        logger.write(this, Log.Level.ERROR, null, failure)
+
     enum class Level { DEBUG, INFO, WARN, ERROR }
     companion object {
         fun from(a: Any): Log = Log(a::class.simpleName ?: "UNKNOWN")
     }
 }
 
-@Suppress("NOTHING_TO_INLINE")
-context(logger: WriteLog)
-inline fun Log.info(message: Any) =
-    logger.write(this, Log.Level.INFO, message.toString(), null)
-
-context(logger: WriteLog)
-fun Log.error(message: Any? = null, exception: Throwable? = null) =
-    if (message is Exceptional && exception == null) {
-        error(message)
-    } else {
-        logger.write(this, Log.Level.ERROR, message?.toString(), exception)
-    }
-
-@Suppress("NOTHING_TO_INLINE")
-context(logger: WriteLog)
-inline fun Log.error(failure: Exceptional) =
-    logger.write(this, Log.Level.ERROR, null, failure.exception)
-
-@Suppress("NOTHING_TO_INLINE")
-context(logger: WriteLog)
-inline fun Log.error(message: Any, exceptional: Exceptional) =
-    logger.write(this, Log.Level.ERROR, message.toString(), exceptional.exception)
-
-class WriteLogConsole : WriteLog {
+class LoggingConsole : Logging {
     override fun write(log: Log, level: Log.Level, message: String?, error: Throwable?) {
         val sw = StringWriter()
         val pw = PrintWriter(sw)
