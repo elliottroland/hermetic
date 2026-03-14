@@ -7,5 +7,8 @@ This is a repository where I'm storing a bunch of ideas and experiements in herm
 Very bare-bones at the moment:
 
 ```
-kotlinc -cp /opt/homebrew/Cellar/kotlin/2.3.10/libexec/lib/kotlinx-coroutines-core-jvm.jar -Xcontext-parameters -d build src/* && kotlin -cp build hermetic.effects.RandomKt
+./run build
+./run test
+./run hermetic.effects.fs.EphemeralFileSystemKt
 ```
+
