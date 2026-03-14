@@ -1,5 +1,6 @@
 package hermetic.effects.fs
 
+import hermetic.clearStackTrace
 import hermetic.either.*
 import hermetic.effects.*
 import java.io.*
@@ -11,12 +12,10 @@ import kotlin.io.*
 /**
  * A [RestrictedFileSystem] which deletes all files created through it when closed.
  */
-interface EphemeralFileSystem : RestrictedFileSystem, Finalizable<DeleteEphemeralError> {
-    class FinalizationError(val errors: List<DeleteError>) : ErrsAsException(errors)
-}
-
-class DeleteEphemeralError(val errors: List<DeleteError>) : ErrsAsException(errors) {
-    override val message = "Ephemeral file system could not clean up all resources"
+interface EphemeralFileSystem : RestrictedFileSystem, Finalizable<EphemeralFileSystem.FinalizationError> {
+    class FinalizationError(val errors: List<DeleteError>) : hermetic.Err(errors) {
+        override val message = "Failed to clean up all ephemeral resources"
+    }
 }
 
 class DefaultEphemeralFileSystem(private val rfs: RestrictedFileSystem) : EphemeralFileSystem {
@@ -43,15 +42,15 @@ class DefaultEphemeralFileSystem(private val rfs: RestrictedFileSystem) : Epheme
     override fun createDir(path: Path, mkdirs: Boolean) =
         rfs.createDir(path, mkdirs).onOk { toDelete.addFirst(it) }
 
-    override fun finalize(): DeleteEphemeralError? {
+    override fun finalize(): EphemeralFileSystem.FinalizationError? {
         val errors = mutableListOf<DeleteError>()
         for (ford in toDelete) {
-            delete(ford).onErr { errors.add(clearStackTrace(it)) }
+            delete(ford).onErr { errors.add(it.also { if (it is hermetic.Err) it.clearStackTrace() }) }
         }
         if (errors.isEmpty()) {
             return null
         }
-        return DeleteEphemeralError(errors)
+        return EphemeralFileSystem.FinalizationError(errors)
     }
 }
 
@@ -70,16 +69,16 @@ fun ephemeralProblem(gfs: GlobalFileSystem) = defers {
     val log = Log("effects.fs.ephemeralProblem")
 
     val dir = fs.createDir("some-dir").getOrThrow()
-    defer {
-        log.info("Deleting dir in defer: $dir")
-        fs.delete(dir).also { log.info(it) }.getOrThrow()
-    }
+    // defer {
+    //     log.info("Deleting dir in defer: $dir")
+    //     fs.delete(dir).also { log.info(it) }.getOrThrow()
+    // }
 
     gfs.createFile(dir.absolute, "persistent-file").getOrThrow()
 
     val file = fs.createFile(dir, "some-file").getOrThrow()
-    defer {
-        log.info("Deleting file in defer: $file")
-        fs.delete(file).also { log.info(it) }.getOrThrow()
-    }
+    // defer {
+    //     log.info("Deleting file in defer: $file")
+    //     fs.delete(file).also { log.info(it) }.getOrThrow()
+    // }
 }

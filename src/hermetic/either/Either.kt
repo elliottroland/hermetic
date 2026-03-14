@@ -322,7 +322,7 @@ fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?
  */
 fun <E : Any, O> Either<E, O>.getOrThrow(message: (E) -> String = { it.toString() }): O =
     // TODO: need to use message
-    getOr { err -> throw throwable(err) }
+    getOr { err -> throw hermetic.Err.throwable(err) }
 
 /**
  * A version of [either] which catches and wraps all non-fatal exceptions. Ideally used when interoperating with existing code which is

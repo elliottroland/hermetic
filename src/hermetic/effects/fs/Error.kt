@@ -1,6 +1,7 @@
 package hermetic.effects.fs
 
-import hermetic.either.*
+import hermetic.either.Either
+import hermetic.Err
 import java.io.*
 
 sealed interface GetError {
@@ -26,7 +27,7 @@ data class ParentPathDoesNotExist(override val path: Path) : CreateError, Delete
 data class PermissionDenied(
     override val path: Path,
     override val cause: SecurityException
-) : GetError, CreateError, DeleteError, FileError, Exception() {
+) : GetError, CreateError, DeleteError, FileError, Err() {
     override fun toString() = "PermissionDenied(${path.java})"
 }
 
@@ -43,19 +44,19 @@ data class PathIsFile(val file: File) : GetError, CreateError {
 data class PathDoesNotExist(
     override val path: Path,
     override val cause: FileNotFoundException?
-) : GetError, DeleteError, FileError, Exception() {
+) : GetError, DeleteError, FileError, Err() {
     override fun toString() = "PathDoesNotExist(${path.java})"
 }
 
 data class IOError(
     override val path: Path,
     override val cause: IOException
-) : FileError, DeleteError, Exception() {
+) : FileError, DeleteError, Err() {
     override fun toString() = "IOError(${path.java})"
 }
 
 data class PathStillExists(
     override val path: Path
-) : DeleteError, Exception() {
+) : DeleteError, Err() {
     override fun toString() = "PathStillExists(${path.java})"
 }
