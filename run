@@ -6,20 +6,21 @@ if [ $# -lt 1 ]; then
 fi
 
 # Always build afresh
-echo "Building..."
+CLASSPATH=$(ls -1 ./jars/* /opt/homebrew/Cellar/kotlin/*/libexec/lib/kotlin{-test,-test-junit5,-stdlib,x-coroutines-core-jvm}.jar | paste -s -d: -)
+echo "Building with classpath $CLASSPATH"
 rm -rf build
-kotlinc -cp $(ls -1 ./jars/* | paste -s -d: -) -Xcontext-parameters -d build src/*
+kotlinc -cp $CLASSPATH -Xcontext-parameters -d build src/*
 
 if [[ "$1" == "test" ]]; then
     shift
     echo "Running tests..."
     echo
     # https://docs.junit.org/6.0.3/running-tests/console-launcher.html
-    kotlin ./jars/junit-platform-console-standalone-*.jar execute -cp build --scan-class-path -e junit-jupiter $@
+    kotlin ./jars/junit-platform-console-standalone-*.jar execute -cp build:$CLASSPATH -e junit-jupiter --scan-class-path $@
 elif [[ "$1" == "build" ]]; then
     exit
 else
-    echo "Running $1..."
+    echo "Running $@..."
     echo
-    kotlin -cp build $1
+    kotlin -cp build $@
 fi

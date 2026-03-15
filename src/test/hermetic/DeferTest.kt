@@ -1,13 +1,13 @@
 package hermetic
 
 import hermetic.*
-import kotlin.test.assertEquals
-import org.junit.jupiter.api.*
+import kotlin.test.*
+import org.junit.jupiter.api.TestInstance
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class DeferTest {
     @Test
-    fun `deferred blocks run after the rest of the block, in reverse order`() {
+    fun `deferred blocks run after the rest of the block and in reverse order`() {
         val actions = mutableListOf<String>()
         defers {
             actions.add("block1")
