@@ -15,8 +15,8 @@ import kotlin.io.writer
  * 
  * @see DeferScope.defer
  */
-inline fun <R> defers(block: DeferScope<R?, EmptyDeferBlockScope>.() -> R): R {
-    val scope = DeferScope<R?, EmptyDeferBlockScope>()
+inline fun <R> defers(block: DeferScope<EmptyDeferBlockScope>.() -> R): R {
+    val scope = DeferScope<EmptyDeferBlockScope>()
     var result: R? = null
     var succeeded = false
     try {
@@ -28,7 +28,7 @@ inline fun <R> defers(block: DeferScope<R?, EmptyDeferBlockScope>.() -> R): R {
             var deferError: Exception? = null
             for (deferral in scope.deferrals) {
                 try {
-                    EmptyDeferBlockScope.deferral(result)
+                    EmptyDeferBlockScope.deferral()
                 } catch (e: Exception) {
                     if (deferError == null && succeeded) {
                         deferError = e
@@ -45,9 +45,9 @@ inline fun <R> defers(block: DeferScope<R?, EmptyDeferBlockScope>.() -> R): R {
  * end with a success or failure.
  */
 @DeferMarker
-open class DeferScope<R, BlockScope : DeferBlockScope> {
+open class DeferScope<BlockScope : DeferBlockScope> {
     private val lazyDeferrals = lazy(LazyThreadSafetyMode.PUBLICATION) {
-        ConcurrentLinkedDeque<BlockScope.(R) -> Unit>()
+        ConcurrentLinkedDeque<BlockScope.() -> Unit>()
     }
     @PublishedApi internal val deferrals by lazyDeferrals
 
@@ -58,41 +58,46 @@ open class DeferScope<R, BlockScope : DeferBlockScope> {
      * latter ended successfully. Defer blocks are executed in reverse order from their definitions, to
      * allow for the proper cleanup of resources.
      */
-    fun defer(block: BlockScope.(R) -> Unit) {
+    fun defer(block: BlockScope.() -> Unit) {
         deferrals.addFirst(block)
     }
 
     /**
+     * Like [defer], except any exceptions thrown by the [block] are caught and ignored.
+     */
+    fun deferCatching(block: BlockScope.() -> Unit) =
+        defer { runCatching(block) }
+
+    /**
      * Defers calling [close]. If the call throws an exception, then [onException] will be called in
-     * order to provide an opportunity for mapping the exception to a modelled error. If the
-     * [onException] block is not provided, then the exception is thrown as normal. As with normal defer
-     * calls, you may use the [EitherScope]'s failure methods for modeling failures and it is passed the
-     * current response of the block.
+     * order to provide an opportunity for handling exceptions. If [onException] is not specified, then
+     * any exceptions encountered are thrown.
      *
      * This is defined on the closeable so that you can easily defer its closure as soon as possible
      * after creation:
      * ```
-     * val writer = file.writer().getOrFail().deferClose()
+     * val writer = file.writer().getOrThrow().deferClose()
      * ```
-     *
-     * This function be thought of as a generalization of [kotlin.io.use], in that it supports the
-     * automatic closure of [AutoCloseable]s, but in a way which is compatible with [Either] semantics.
      */
-    fun <T : AutoCloseable> T.deferClose(onException: (R, Exception) -> Unit = { _, ex -> throw ex }): T =
+    fun <T : AutoCloseable> T.deferClose(onException: (Exception) -> Unit = { throw it }): T =
         apply {
-            defer { response ->
+            defer {
                 try {
                     close()
                 } catch (e: Exception) {
-                    onException(response, e)
+                    onException(e)
                 }
             }
         }
 
-    fun <E, F : Finalizable<E>> F.deferFinalize(onError: (R, E) -> Unit): F =
+    /**
+     * Defers calling [finalize]. If the call ends with an error, then by default it will be thrown as a [throwable]. If
+     * [onError] is provided, then that will be run instead.
+     */
+    fun <E, F : Finalizable<E>> F.deferFinalize(onError: (E & Any) -> Unit = { throw throwable(it) }): F =
         apply {
-            defer { response ->
-                finalize()?.also { onError(response, it) }
+            defer {
+                finalize()?.also { onError(it) }
             }
         }
 }

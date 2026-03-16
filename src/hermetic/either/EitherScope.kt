@@ -10,9 +10,8 @@ import hermetic.DeferBlockScope
  * block for the [err] branch.
  *
  * ### Defer
- * Within the either scope you may [defer][EitherScope.defer] a computation until the
- * block is finished, regardless of whether it finishes with a success of failure. Defer blocks are
- * run in reverse order from their definitions.
+ * The scope defined for this block is also a [DeferScope], allowing the use of [defer][DeferScope.defer]
+ * for running code after the block is finished in reverse order.
  *
  * The response which will be returned by the [either] is passed to each deferral, allowing them to
  * change their behavior based on it (although this is not recommended in general, as it complicates
@@ -64,7 +63,7 @@ inline fun <E, O> either(block: EitherDeferScope<E, O>.() -> O): Either<E, O> {
         if (scope.hasDeferrals()) {
             for (deferral in scope.deferrals) {
                 try {
-                    scope.deferral(result!!)
+                    scope.deferral()
                 } catch (e: ErrPropagation) {
                     when {
                         e.scope === scope -> {
@@ -78,7 +77,7 @@ inline fun <E, O> either(block: EitherDeferScope<E, O>.() -> O): Either<E, O> {
             }
         }
     }
-    return result
+    return result!!
 }
 
 
@@ -141,7 +140,7 @@ interface EitherScope<E, O> : DeferBlockScope {
  *
  * @see either
  */
-class EitherDeferScope<E, O> : EitherScope<E, O>, DeferScope<Either<E, O>, EitherScope<E, O>>() {
+class EitherDeferScope<E, O> : EitherScope<E, O>, DeferScope<EitherScope<E, O>>() {
     // ------ Failures ------
 
     override fun <O> Either<E, O>.getOrFail(): O =

@@ -20,7 +20,6 @@ import kotlin.io.*
  */
 interface RestrictedFileSystem : FileSystem {
     fun rootDir(): Dir
-    fun ephemeral(): EphemeralFileSystem
 }
 
 open class DefaultRestrictedFileSystem(private val rootDir: Dir, private val gfs: GlobalFileSystem) : RestrictedFileSystem {

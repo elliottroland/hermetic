@@ -7,41 +7,15 @@ import java.nio.file.*
 import java.nio.charset.*
 import kotlin.io.*
 
-fun main() {
-    // val gfs = GlobalFileSystem(null)
-    // val root = gfs.getDir(Path.of("src")).getOrThrow()
-    // context(RestrictedFileSystem(root, gfs)) {
-    val fs = GlobalFileSystem(null).restrictFs(Path.of("src")).getOrThrow()
-    context(fs) {
-        doSomething()
-    }
+sealed interface Lifespan {
+    object Persistent: Lifespan
+    class Ephemeral 
 }
+enum class Scope { Global, Restricted }
 
-context(fs: RestrictedFileSystem)
-fun doSomething() {
-    // println(fs.get(Path.of("hello.world")))
-    // println(fs.get(Path.of("src")))
-    // println(fs.getFile(Path.of("src")))
-    // println(fs.getFileOrNull(Path.of("src")))
-    // println(fs.get(Path.of("README.md")))
-    // println(fs.getOrCreateDir(Path.of("README.md"), mkdirs = false))
-    // println(fs.getOrCreateDir(Path.of("README.md"), mkdirs = false).recoverToNullIf { it is PathIsFile })
-    // println(fs.createFile(Path.of("README.md"), mkdirs = false).recover { if (it is PathIsFile) ok(it.file) else err(it) })
-    // println(fs.getOrCreateFile(Path.of("README.md"), mkdirs = false))
-    // println(fs.inputStream(File(Paths.get("hello.world").toFile())))
-    val dir = fs.getDir(Path.of("hermetic")).getOrThrow()
-    // val walk = fs.walk(dir)
-    for (ford in fs.list(dir)) {
-        println(ford)
-    }
-
-    // println(fs.resolve(File(java.io.File("README.md"))))
-
-    // println(fs.getDir(Path.of("./something")))
-    // fs.getDir(Path.of("/Users/elliottroland/Desktop/hermetic"))
+class FinalizationError(val errors: List<Any>) : hermetic.Err(errors) {
+    override val message = "Failed to clean up all ephemeral resources"
 }
-
-// TODO: We should expose functions for listing and walking directories. Although these can also be thought of as actions on the file.
 
 /**
  * An effect which exposes the underlying file system in different ways, depending on the
@@ -56,7 +30,7 @@ fun doSomething() {
  * and (2) the structure of a folder is typically known ahead of time. There is a more general
  * [FileOrDir] type, but it is not expected that you will need this very often.
  */
-interface FileSystem {
+interface FileSystem<Lifespan, Scope> : Finalizable<FinalizationError> {
     fun get(path: Path): Either<GetError, FileOrDir>
 
     /**
@@ -171,3 +145,25 @@ fun FileSystem.getDir(path: String) = getDir(Path.of(path))
 fun FileSystem.getDirOrNull(path: String) = getDirOrNull(Path.of(path))
 fun FileSystem.getOrCreateDir(path: String, mkdirs: Boolean = false) = getOrCreateDir(Path.of(path), mkdirs)
 fun FileSystem.restrictFs(path: String, mkdirs: Boolean = false) = restrictFs(Path.of(path), mkdirs)
+
+/**
+ * A [FileSystem] which is not scoped to any particular root directory. Generally, this should
+ * not be used, and rather a [RestrictedFileSystem] or [EphemeralFileSystem] should be used instead.
+ * 
+ * If this file system is created with an [async], then all [inputStream]s and [outputStream]s are
+ * wrapped in asynchronous versions, offloading all disk IO to a dedicated async pool. This is the
+ * recommended mechanism for disk IO, since it allows these operations to be scaled to the needs of
+ * the underlying host independently of the workload of your application code.
+ */
+typealias GlobalFileSystem = FileSystem<Lifespan.Persistent, Scope.Global>
+
+interface RestrictedFileSystem : FileSystem
+
+/**
+ * A [FileSystem] which will delete all files created with it when [finalize]d.
+ */
+interface EphemeralFileSystem : FileSystem, Finalizable<EphemeralFileSystem.FinalizationError> {
+    
+}
+
+interface PersistentFileSystem : FileSystem

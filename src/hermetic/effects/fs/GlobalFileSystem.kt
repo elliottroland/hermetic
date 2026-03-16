@@ -7,16 +7,7 @@ import java.nio.file.*
 import java.nio.charset.*
 import kotlin.io.*
 
-/**
- * A [FileSystem] which is not scoped to any particular root directory. Generally, this should
- * not be used, and rather a [RestrictedFileSystem] or [EphemeralFileSystem] should be used instead.
- * 
- * If this file system is created with an [async], then all [inputStream]s and [outputStream]s are
- * wrapped in asynchronous versions, offloading all disk IO to a dedicated async pool. This is the
- * recommended mechanism for disk IO, since it allows these operations to be scaled to the needs of
- * the underlying host independently of the workload of your application code.
- */
-class GlobalFileSystem(private val async: Async? = null) : FileSystem {
+class GlobalFileSystemDefault(private val async: Async? = null) : GlobalFilesystem {
     override fun get(path: Path): Either<GetError, FileOrDir> {
         val file = path.java.toFile()
         return when {

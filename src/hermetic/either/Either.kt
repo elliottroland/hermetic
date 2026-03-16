@@ -1,5 +1,7 @@
 package hermetic.either
 
+import hermetic.throwable
+
 /**
  * Represents the outcome of a function, either a failure of type [E] or a success of type [O]. An [Either] cannot be constructed directly, but must be
  * done via one of the branch methods ([err] and [ok]), or through the [either] scope function. Various mechanisms exist for working with the value of
@@ -322,7 +324,7 @@ fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?
  */
 fun <E : Any, O> Either<E, O>.getOrThrow(message: (E) -> String = { it.toString() }): O =
     // TODO: need to use message
-    getOr { err -> throw hermetic.Err.wrap(err) }
+    getOr { err -> throw throwable(err) }
 
 /**
  * A version of [either] which catches and wraps all non-fatal exceptions. Ideally used when interoperating with existing code which is
