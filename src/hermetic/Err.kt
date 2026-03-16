@@ -33,7 +33,7 @@ open class Err : IllegalStateException {
     /**
      * Constructs an [Err] with a default message and [error] coerced to a [throwable] marked as the cause.
      */
-    constructor(error: Any) : this("Encountered error: $error", error)
+    constructor(error: Any) : this(error.toString())
     /**
      * Constructs an [Err] with the given [message] and [error] coerced to a [throwable] marked as the cause.
      */
@@ -58,7 +58,7 @@ fun throwable(error: Any, generateStackTrace: Boolean = true): Throwable =
             is String -> Err(error)
             is List<*> -> Err(error.filterNotNull())
             else -> Err(error)
-        }.apply { if (generateStackTrace) clearStackTrace() }
+        }.apply { if (!generateStackTrace) clearStackTrace() }
     }
 
 fun main() {

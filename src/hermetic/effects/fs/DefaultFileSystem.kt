@@ -3,6 +3,7 @@ package hermetic.effects.fs
 import hermetic.effects.Async
 import hermetic.either.Either
 import hermetic.either.err
+import hermetic.either.getOr
 import hermetic.either.ok
 import java.io.FileInputStream
 import java.io.FileNotFoundException
@@ -30,15 +31,26 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
 
     override fun createFile(path: Path, mkdirs: Boolean): Either<CreateError, File> =
         try {
-            val file = scope.resolve(path).java.toFile()
-            if (mkdirs) {
-                file.parentFile.mkdirs()
+            val resolved = scope.resolve(path)
+
+            // Ensure we're about to create something
+            checkDoesNotExist(resolved).onErr { return err(it) }
+
+            // Ensure the directory for the file exists
+            getDir(resolved.parent).onErr { err ->
+                when (err) {
+                    is PathDoesNotExist -> when {
+                        mkdirs -> createDir(resolved.parent, mkdirs = true).getOr { return err(it) }
+                        else -> return err(ParentPathDoesNotExist(resolved))
+                    }
+                    is PathIsFile -> return err(err)
+                }
             }
-            when {
-                file.createNewFile() -> ok(File(file))
-                file.isDirectory() -> err(PathIsDir(Dir(file)))
-                else -> err(PathIsFile(File(file)))
-            }
+
+            // Create the file and fail hard if we can't
+            val file = resolved.java.toFile()
+            check(file.createNewFile()) { "Failed to create new file at $file" }
+            ok(File(file))
         } catch (e: SecurityException) {
             err(PermissionDenied(path, e))
         } catch (e: IOException) {
@@ -46,9 +58,50 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
             err(ParentPathDoesNotExist(path))
         }.onOk { lifespan.register(it) }
 
+    override fun createDir(path: Path, mkdirs: Boolean): Either<CreateError, Dir> {
+        return try {
+            val resolved = scope.resolve(path).normalized
+
+            // Ensure we're about to create something
+            checkDoesNotExist(resolved).onErr { return err(it) }
+
+            // Ensure all ancestors exist, and none are files
+            getDir(resolved.parent).onErr {
+                for (ancestor in resolved.ancestors()) {
+                    getDir(ancestor).onErr { err ->
+                        when (err) {
+                            is PathDoesNotExist -> when {
+                                mkdirs -> createDir(ancestor, mkdirs = false).onErr { return err(ParentPathDoesNotExist(resolved)) }
+                                else -> return err(ParentPathDoesNotExist(resolved))
+                            }
+                            is PathIsFile -> return err(AncestorPathIsFile(err.file, path))
+                        }
+                    }
+                }
+            }
+
+            // Attempt to create the file -- and fail hard if we can't for some reason
+            val file = resolved.java.toFile()
+            check(file.mkdir()) { "Failed to create directory at $file" }
+            ok(Dir(file))
+        } catch (e: SecurityException) {
+            err(PermissionDenied(path, e))
+        } catch (e: IOException) {
+            // TODO: Is this the right interpretation?
+            err(ParentPathDoesNotExist(path))
+        }.onOk { lifespan.register(it) }
+    }
+
     override fun createTempFile(dir: Dir, prefix: String, suffix: String): Either<CreateError, File> =
         try {
-            ok(File(java.io.File.createTempFile(prefix, suffix, scope.resolve(dir).java)))
+            val resolved = scope.resolve(dir)
+            getDir(resolved.path).onErr {
+                return when (it) {
+                    is PathIsFile -> err(AncestorPathIsFile(it.file, resolved.path))
+                    is PathDoesNotExist -> err(ParentPathDoesNotExist(resolved.path))
+                }
+            }
+            ok(File(java.io.File.createTempFile(prefix, suffix, resolved.java)))
         } catch (e: SecurityException) {
             err(PermissionDenied(dir.path, e))
         } catch (e: IOException) {
@@ -56,31 +109,13 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
             err(ParentPathDoesNotExist(dir.path))
         }.onOk { lifespan.register(it) }
 
-    override fun createDir(path: Path, mkdirs: Boolean): Either<CreateError, Dir> =
-        try {
-            val resolved = scope.resolve(path).java.toFile()
-            if (mkdirs) {
-                resolved.parentFile.mkdirs()
-            }
-            when {
-                resolved.mkdir() -> ok(Dir(resolved))
-                resolved.isFile() -> err(PathIsFile(File(resolved)))
-                else -> err(PathIsDir(Dir(resolved)))
-            }
-        } catch (e: SecurityException) {
-            err(PermissionDenied(path, e))
-        } catch (e: IOException) {
-            // TODO: Is this the right interpretation?
-            err(ParentPathDoesNotExist(path))
-        }.onOk { lifespan.register(it) }
-
-    override fun delete(ford: FileOrDir): Either<DeleteError, Boolean> =
+    override fun delete(ford: FileOrDir): Either<DeleteError, Unit> =
         try {
             val resolved = scope.resolve(ford)
             when {
-                !resolved.java.exists() -> ok(false)
+                !resolved.java.exists() -> err(PathDoesNotExist(resolved.path, null))
                 !resolved.java.delete() -> err(PathStillExists(ford.path))
-                else -> ok(true)
+                else -> ok(Unit)
             }
         } catch (e: SecurityException) {
             err(PermissionDenied(ford.path, e))
@@ -131,4 +166,28 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
             isFile() -> File(this)
             else -> Dir(this)
         }
+
+    private fun checkDoesNotExist(resolved: Path): Either<CreateError, Unit> {
+        get(resolved).onOk {
+            // If the path already exists then we can't create it, and return as much
+            return when (it) {
+                is File -> err(PathIsFile(it))
+                is Dir -> err(PathIsDir(it))
+            }
+        }.onErr {
+            // We include this branch to be sure that no new cases are added without this function being updated
+            when (it) {
+                is PathDoesNotExist -> Unit // Good
+            }
+        }
+        return ok(Unit)
+    }
+
+    private fun Path.ancestors(): List<Path> = buildList {
+        var path = this@ancestors
+        while (path.hasParent) {
+            add(0, path.parent)
+            path = path.parent
+        }
+    }
 }

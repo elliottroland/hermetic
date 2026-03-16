@@ -38,6 +38,9 @@ fun <F : Finalizable<E>, E, R> F.use(block: (F) -> R): FinalizedResult<E, R> {
     }
 }
 
+fun <F : Finalizable<E>, E : Any, R> F.useThrowing(block: (F) -> R): R =
+    use(block).toEither().getOrThrow()
+
 class FinalizedResult<E, R>(val error: E?, val result: R) {
     fun onErr(block: (E) -> Unit) = apply { error?.also { block(it) } }
     fun toEither(): Either<E, R> = error?.let { err(it) } ?: ok(result)

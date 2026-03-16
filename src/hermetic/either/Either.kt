@@ -1,5 +1,10 @@
 package hermetic.either
 
+import hermetic.DeferBlockScope
+import hermetic.DeferScope
+import hermetic.EmptyDeferBlockScope
+import hermetic.Err
+import hermetic.defers
 import hermetic.throwable
 
 /**
@@ -96,7 +101,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
      * Run the [block] if this [Either] is [ok], otherwise do nothing, then return this.
      */
     @Suppress("UNCHECKED_CAST")
-    fun onOk(block: (O) -> Unit): Either<E, O> = apply {
+    inline fun onOk(block: (O) -> Unit): Either<E, O> = apply {
         if (isOk) {
             block(this.value as O)
         }
@@ -106,7 +111,7 @@ value class Either<out E, out O> @PublishedApi internal constructor(@PublishedAp
      * Run the [block] if this [Either] is [err], otherwise do nothing, then return this.
      */
     @Suppress("UNCHECKED_CAST")
-    fun onErr(block: (E) -> Unit): Either<E, O> = apply {
+    inline fun onErr(block: (E) -> Unit): Either<E, O> = apply {
         if (isErr) {
             block((value as ErrMarker<E>).value)
         }
@@ -198,6 +203,11 @@ fun <E, O> Either<E, O>.getOrNull(): O? =
 // Note: This is made inline so that we can avoid function call overheads.
 fun <E, O> Either<E, O>.errOrNull(): E? =
     errOr { null }
+
+// ------ Special cases ------
+
+fun <T> Either<T, T>.get(): T =
+    getOr { errOr { throw IllegalStateException("Both branches of Either are empty: $this") } }
 
 // ------ Mapping ------
 
@@ -319,20 +329,27 @@ fun <E, O> Either<E, O>.recoverToNullIf(condition: (E) -> Boolean): Either<E, O?
 // ------ Dealing with exceptions ------
 
 /**
- * Throws an [IllegalStateException] with the given [message] if this is an [err], otherwise returns the [ok].
- * If the [err] is an instance of [Exceptional], then its exception is used to populate the cause of the thrown exception.
+ * Returns the [ok] branch of the [Either] or throws. If the [message] block returns something non-null, then the error thrown
+ * will always be an instance of [Err] with this message set. On the other hand, if it returns null and the [E] is already throwable
+ * then it will not be wrapped in a further throwable.
  */
-fun <E : Any, O> Either<E, O>.getOrThrow(message: (E) -> String = { it.toString() }): O =
-    // TODO: need to use message
-    getOr { err -> throw throwable(err) }
+fun <E : Any, O> Either<E, O>.getOrThrow(message: (E) -> String? = { null }): O =
+    getOr { err ->
+        when (val message = message(err)) {
+            null -> throw throwable(err)
+            else -> throw Err(message, err)
+        }
+    }
 
 /**
  * A version of [either] which catches and wraps all non-fatal exceptions. Ideally used when interoperating with existing code which is
- * known to throw exceptions rather than work with [Either]s.
+ * known to throw exceptions rather than work with [Either]s. To provide similar support to the [either] scope's defer functionality this
+ * runs within a [defers] scope, and any exceptions thrown either by the main block or one of the defer blocks will be caught and returned
+ * as the [err] branch of the result.
  */
-fun <O> eitherCatching(block: () -> O): Either<Exception, O> =
+fun <O> eitherCatching(block: DeferScope<EmptyDeferBlockScope>.() -> O): Either<Exception, O> =
     try {
-        ok(block())
+        ok(defers(block))
     } catch (e: Exception) {
         err(e)
     }

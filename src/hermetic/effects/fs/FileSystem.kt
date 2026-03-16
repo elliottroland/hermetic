@@ -14,8 +14,11 @@ import hermetic.either.flatMap
 import hermetic.either.getOrNull
 import hermetic.either.getOrThrow
 import hermetic.either.map
+import hermetic.either.mapErr
 import hermetic.either.ok
 import hermetic.either.recover
+import hermetic.either.recoverIf
+import hermetic.either.recoverToNullIf
 import java.io.InputStream
 import java.io.OutputStream
 
@@ -118,7 +121,7 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
      * Attempts to delete the file at the given [path], returning whether there was anything
      * to delete.
      */
-    fun delete(ford: FileOrDir): Either<DeleteError, Boolean>
+    fun delete(ford: FileOrDir): Either<DeleteError, Unit>
 
     /**
      * Begins a walk up or down the file tree rooted at the [dir].
@@ -170,8 +173,12 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
     /**
      * Resolves the [path] to a [File] if it exists, otherwise returns an error.
      */
-    fun getFile(path: Path): Either<GetError, File> =
-        get(path).flatMap { ford ->
+    fun getFile(path: Path): Either<GetFileError, File> =
+        get(path).mapErr {
+            when (it) {
+                is PathDoesNotExist -> it
+            }
+        }.flatMap { ford ->
             when (ford) {
                 is File -> ok(ford)
                 is Dir -> err(PathIsDir(ford))
@@ -194,8 +201,12 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
     /**
      * Resolves the [path] to a [Dir] if it exists, otherwise returns an error.
      */
-    fun getDir(path: Path): Either<GetError, Dir> =
-        get(path).flatMap { ford ->
+    fun getDir(path: Path): Either<GetDirError, Dir> =
+        get(path).mapErr {
+            when (it) {
+                is PathDoesNotExist -> it
+            }
+        }.flatMap { ford ->
             when (ford) {
                 is Dir -> ok(ford)
                 is File -> err(PathIsFile(ford))
@@ -214,6 +225,9 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
      */
     fun getOrCreateDir(path: Path, mkdirs: Boolean = false): Either<CreateError, Dir> =
         createDir(path, mkdirs).recover { if (it is PathIsDir) ok(it.dir) else err(it) }
+
+    fun deleteIfExists(ford: FileOrDir): Either<DeleteError, Boolean> =
+        delete(ford).map { true }.recoverIf({ it is PathDoesNotExist }, { false })
     
     fun list(dir: Dir): Sequence<FileOrDir> =
         walk(dir, maxDepth = 1, direction = FileWalkDirection.TOP_DOWN, shouldEnter = { true }).drop(1)
