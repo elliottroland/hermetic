@@ -1,8 +1,8 @@
 package hermetic.effects.fs
 
-import hermetic.either.*
+import hermetic.either.getOrThrow
 
-class DirBuilderScope(private val fs: FileSystem, private val root: Path? = null) {
+class DirBuilderScope(private val fs: FileSystem<*, *>, private val root: Path? = null) {
     fun dir(name: String, mkdirs: Boolean = false, subBuilder: DirBuilderScope.(Dir) -> Unit): Dir =
         fs.getOrCreateDir(resolve(name), mkdirs).getOrThrow().also {
             DirBuilderScope(fs, it.path).subBuilder(it)
@@ -15,6 +15,6 @@ class DirBuilderScope(private val fs: FileSystem, private val root: Path? = null
         root?.resolve(name) ?: Path.of(name)
 }
 
-fun dirBuilder(fs: FileSystem, subBuilder: DirBuilderScope.() -> Unit) {
+fun dirBuilder(fs: FileSystem<*, *>, subBuilder: DirBuilderScope.() -> Unit) {
     DirBuilderScope(fs, null).subBuilder()
 }

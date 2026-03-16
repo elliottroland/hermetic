@@ -1,6 +1,9 @@
 package hermetic
 
-import hermetic.either.*
+import hermetic.either.Either
+import hermetic.either.err
+import hermetic.either.getOrThrow
+import hermetic.either.ok
 
 /**
  * An alternative of [AutoCloseable] which allows the implementation to specify a failure mode for the [finalize] method (the equivalent

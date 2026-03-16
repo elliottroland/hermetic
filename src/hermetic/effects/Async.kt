@@ -1,8 +1,21 @@
 package hermetic.effects
 
-import hermetic.either.*
-import java.util.concurrent.*
+import hermetic.either.Either
+import hermetic.either.eitherCatching
+import hermetic.either.err
+import hermetic.either.mapErr
+import hermetic.either.ok
 import java.util.UUID
+import java.util.concurrent.CancellationException
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.ExecutionException
+import java.util.concurrent.Executor
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.TimeoutException
 
 val log = Log("effects.Async")
 
@@ -62,6 +75,10 @@ interface Async {
         data class Timeout(override val cause: Throwable) : Failure, Exception()
         data class Cancelled(override val cause: Throwable) : Failure, Exception()
         data class Unknown(override val cause: Throwable) : Failure, Exception()
+    }
+
+    companion object {
+        val IO: Async = AsyncDefault(namePrefix = "async-io", daemon = true)
     }
 }
 

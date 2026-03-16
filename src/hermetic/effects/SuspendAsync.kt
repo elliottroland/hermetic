@@ -1,7 +1,6 @@
 package hermetic.effects
 
-import hermetic.either.*
-import kotlinx.coroutines.*
+import hermetic.either.Either
 
 /**
  * A convenience wrapper around Kotlin's coroutine functionality, which allows for the management

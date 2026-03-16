@@ -1,6 +1,6 @@
 package hermetic.effects
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.delay
 
 interface SuspendWait {
     suspend fun waitMillis(millis: Long)

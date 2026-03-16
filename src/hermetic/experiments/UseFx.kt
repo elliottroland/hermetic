@@ -1,6 +1,8 @@
 package hermetic.experiments
 
-import hermetic.either.*
+import hermetic.either.Either
+import hermetic.either.err
+import hermetic.either.ok
 
 fun <Fx> sayHelloFx(fx: Fx, name: String): Either<InvalidName, Unit>
 where Fx : HasLog, Fx : HasTime = with(fx) {

@@ -1,6 +1,5 @@
 package hermetic.effects
 
-import hermetic.either.*
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Instant

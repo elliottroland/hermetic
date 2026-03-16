@@ -1,7 +1,10 @@
 package hermetic.effects.fs
 
 import hermetic.effects.Async
-import java.io.*
+import java.io.FilterInputStream
+import java.io.FilterOutputStream
+import java.io.InputStream
+import java.io.OutputStream
 
 /**
  * A [FilterInputStream] which offloads all writes to the underlying stream to the provided [Async].

@@ -1,9 +1,13 @@
 package hermetic.effects.fs
 
-import hermetic.either.*
-import java.io.*
-import java.time.Instant
+import hermetic.either.Either
+import hermetic.either.map
+import java.io.InputStream
+import java.io.OutputStream
+import java.io.Reader
+import java.io.Writer
 import java.nio.file.Paths
+import java.time.Instant
 import java.io.File as JFile
 import java.nio.file.Path as JPath
 
@@ -72,16 +76,16 @@ class File internal constructor(override val java: JFile) : FileOrDir {
     val executable get() = java.canExecute()
     val sizeBytes get() = java.length()
 
-    context(fs: FileSystem)
+    context(fs: FileSystem<*, *>)
     fun inputStream(): Either<FileError, InputStream> = fs.inputStream(this)
 
-    context(fs: FileSystem)
+    context(fs: FileSystem<*, *>)
     fun reader(): Either<FileError, Reader> = inputStream().map { it.reader() }
     
-    context(fs: FileSystem)
+    context(fs: FileSystem<*, *>)
     fun outputStream(): Either<FileError, OutputStream> = fs.outputStream(this)
 
-    context(fs: FileSystem)
+    context(fs: FileSystem<*, *>)
     fun writer(): Either<FileError, Writer> = outputStream().map { it.writer() }
 
     override fun toString() = "File($java)"
@@ -93,10 +97,10 @@ class Dir internal constructor(override val java: JFile) : FileOrDir {
     override val path by lazy { Path(java.toPath()) }
     val absolute get() = Dir(path.absolute.java.toFile())
 
-    context(fs: FileSystem)
+    context(fs: FileSystem<*, *>)
     fun files() = fs.listFiles(this)
 
-    context(fs: FileSystem)
+    context(fs: FileSystem<*, *>)
     fun dirs() = fs.listDirs(this)
 
     fun resolve(path: Path): Path = this.path.resolve(path)

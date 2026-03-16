@@ -1,16 +1,23 @@
 package hermetic
 
-import hermetic.effects.*
-import hermetic.effects.fs.*
-import hermetic.either.*
+import hermetic.effects.Log
+import hermetic.effects.Logging
+import hermetic.effects.LoggingConsole
+import hermetic.effects.fs.FileSystem
+import hermetic.effects.fs.RestrictedFileSystem
+import hermetic.effects.fs.getOrCreateDir
+import hermetic.either.Either
+import hermetic.either.either
+import hermetic.either.getOrThrow
+import jdk.internal.net.http.common.Utils.close
+import org.junit.platform.engine.UniqueId.root
 import java.util.concurrent.ConcurrentLinkedDeque
-import kotlin.io.writer
 
 /**
  * Executes the [block] within a [DeferScope]. Generally, it is recommended that you use the [either] for handling
  * deferring code, but if you don't need the extra machinery around error handling then this is a much simpler
  * alternative. The value passed to the each [defer][DeferScope] call will be the computed return value if the [block]
- * exitted normally, or null if it ended exceptionally. If the [block] or any of the [defer][DeferScope] calls end
+ * exited normally, or null if it ended exceptionally. If the [block] or any of the [defer][DeferScope] calls end
  * exceptionally, the first observed exception is thrown.
  * 
  * @see DeferScope.defer
@@ -69,6 +76,15 @@ open class DeferScope<BlockScope : DeferBlockScope> {
         defer { runCatching(block) }
 
     /**
+     * Convenience function for constructing a [defer] block on a newly-created object.
+     * ```
+     * fileSystem.createDir("my-new-dir").getOrThrow().defer { fileSystem.delete(it) }
+     * ```
+     */
+    fun <T> T.defer(block: BlockScope.(T) -> Unit): T =
+        apply { this@DeferScope.defer { block(this@apply) } }
+
+    /**
      * Defers calling [close]. If the call throws an exception, then [onException] will be called in
      * order to provide an opportunity for handling exceptions. If [onException] is not specified, then
      * any exceptions encountered are thrown.
@@ -91,15 +107,11 @@ open class DeferScope<BlockScope : DeferBlockScope> {
         }
 
     /**
-     * Defers calling [finalize]. If the call ends with an error, then by default it will be thrown as a [throwable]. If
+     * Defers calling [Finalizable.finalize]. If the call ends with an error, then by default it will be thrown as a [throwable]. If
      * [onError] is provided, then that will be run instead.
      */
     fun <E, F : Finalizable<E>> F.deferFinalize(onError: (E & Any) -> Unit = { throw throwable(it) }): F =
-        apply {
-            defer {
-                finalize()?.also { onError(it) }
-            }
-        }
+        apply { defer { finalize()?.also { onError(it) } } }
 }
 
 @DeferMarker
@@ -112,14 +124,16 @@ object EmptyDeferBlockScope : DeferBlockScope
 annotation class DeferMarker
 
 fun main() {
-    val fs = GlobalFileSystem(null)
-    val root = fs.getOrCreateDir("deferTest").getOrThrow()
-    context(fs.restrictFs(root), LoggingConsole()) {
-        println(testDefer().getOrThrow())
+    defers {
+        val fs = FileSystem.global()
+        val root = fs.getOrCreateDir("deferTest").getOrThrow().defer { fs.delete(it) }
+        context(fs.restricted(root), LoggingConsole()) {
+            println(testDefer().getOrThrow())
+        }
     }
 }
 
-context(fs: FileSystem, _: Logging)
+context(fs: RestrictedFileSystem, _: Logging)
 fun testDefer(): Either<String, Long> = either {
     val log = Log("testDefer")
 
@@ -128,9 +142,6 @@ fun testDefer(): Either<String, Long> = either {
     defer {
         log.info("Deleting dir: $dir")
         fs.delete(dir).getOrFail { "Failed to clean up dir: $it" }
-        // defer {
-        //     println("Nested defer is executing")
-        // }
     }
 
     val file = fs.createFile(dir.resolve("some-file")).getOrFail { "Failed to create file: $it" }
@@ -146,6 +157,3 @@ fun testDefer(): Either<String, Long> = either {
     log.info("File contents: ${file.reader().getOrThrow().readLines()}")
     file.sizeBytes
 }
-
-
-

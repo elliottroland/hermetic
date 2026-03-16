@@ -1,6 +1,8 @@
 package hermetic.experiments
 
-import hermetic.either.*
+import hermetic.either.Either
+import hermetic.either.err
+import hermetic.either.ok
 
 context(time: Time, log: Log)
 fun sayHelloContext(name: String): Either<InvalidName, Unit> {

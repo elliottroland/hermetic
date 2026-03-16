@@ -1,7 +1,7 @@
 package hermetic.either
 
-import hermetic.DeferScope
 import hermetic.DeferBlockScope
+import hermetic.DeferScope
 
 /**
  * Executes the [block] with an [EitherScope], wrapping the successful result with [ok] and wrapping

@@ -1,6 +1,7 @@
 package hermetic.effects
 
-import java.time.*
+import java.time.Duration
+import java.time.Instant
 
 interface ReadTime {
     fun now(): Instant

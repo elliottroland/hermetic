@@ -1,8 +1,8 @@
 package hermetic.effects.fs
 
-import hermetic.either.Either
 import hermetic.Err
-import java.io.*
+import java.io.FileNotFoundException
+import java.io.IOException
 
 sealed interface GetError {
     val path: Path
@@ -27,7 +27,7 @@ data class ParentPathDoesNotExist(override val path: Path) : CreateError, Delete
 data class PermissionDenied(
     override val path: Path,
     override val cause: SecurityException
-) : GetError, CreateError, DeleteError, FileError, Err() {
+) : CreateError, DeleteError, FileError, Err() {
     override fun toString() = "PermissionDenied(${path.java})"
 }
 
@@ -59,4 +59,8 @@ data class PathStillExists(
     override val path: Path
 ) : DeleteError, Err() {
     override fun toString() = "PathStillExists(${path.java})"
+}
+
+class FinalizationError(val errors: List<Any>) : Err(errors) {
+    override val message = "Failed to clean up all ephemeral resources"
 }
