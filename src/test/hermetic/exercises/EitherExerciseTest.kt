@@ -137,4 +137,60 @@ class EitherExerciseTest {
             assertOk(fs.getOrCreateDir(root.resolve("get-or-create-dir-dir").resolve("get-or-create-dir"), mkdirs = true))
         }
     }
+
+    @Nested
+    @DisplayName("delete")
+    inner class Delete {
+        @Test
+        fun `fails if the target does not exist`() {
+            val file = File(root.resolve("non-existent-file").java.toFile())
+            assertIs<PathDoesNotExist>(assertErr(fs.delete(file)))
+
+            val dir = Dir(root.resolve("non-existent-dir").java.toFile())
+            assertIs<PathDoesNotExist>(assertErr(fs.delete(dir)))
+        }
+
+        @Test
+        fun `fails when trying to delete a file which is non-empty`() {
+            val file = File(root.resolve("dir").resolve("some-file").java.toFile())
+            file.java.createNewFile()
+            val dir = assertOk(fs.get(root.resolve("dir"))) as Dir
+            assertIs<PathStillExists>(assertErr(fs.delete(dir)))
+        }
+
+        @Test
+        fun `succeeds when file or dir can be deleted`() {
+            val file = assertOk(fs.createFile(root.resolve("file-to-be-deleted")))
+            assertOk(fs.delete(file))
+
+            val dir = assertOk(fs.createDir(root.resolve("dir-to-be-deleted")))
+            assertOk(fs.delete(dir))
+        }
+    }
+    
+    @Nested
+    @DisplayName("deleteIfExists")
+    inner class DeleteIfExists {
+        @Test
+        fun `succeeds with false if the target does not exist`() {
+            assertFalse(assertOk(fs.deleteIfExists(root.resolve("non-existent-file"))))
+            assertFalse(assertOk(fs.deleteIfExists(root.resolve("non-existent-dir"))))
+        }
+
+        @Test
+        fun `fails when trying to delete a file which is non-empty`() {
+            val file = File(root.resolve("dir").resolve("some-file").java.toFile())
+            file.java.createNewFile()
+            assertIs<PathStillExists>(assertErr(fs.deleteIfExists(root.resolve("dir"))))
+        }
+
+        @Test
+        fun `succeeds with true when file or dir can be deleted`() {
+            val file = assertOk(fs.createFile(root.resolve("file-to-be-deleted-if-exists")))
+            assertTrue(assertOk(fs.deleteIfExists(file.path)))
+
+            val dir = assertOk(fs.createDir(root.resolve("dir-to-be-deleted-if-exists")))
+            assertTrue(assertOk(fs.deleteIfExists(dir.path)))
+        }
+    }
 }

@@ -1,9 +1,13 @@
 package hermetic.exercises
 
-import hermetic.either.*
-import java.io.*
-import java.time.Instant
+import hermetic.either.Either
+import hermetic.either.map
+import java.io.InputStream
+import java.io.OutputStream
+import java.io.Reader
+import java.io.Writer
 import java.nio.file.Paths
+import java.time.Instant
 import java.io.File as JFile
 import java.nio.file.Path as JPath
 
@@ -26,6 +30,9 @@ data class Path(val java: JPath) {
     val absolute get() = if (java.isAbsolute()) this else Path(java.toAbsolutePath())
     val isAbsolute get() = java.isAbsolute()
     val isRelative get() = !isAbsolute
+    val parent get() = Path(java.parent)
+    val hasParent get() = java.parent != null
+    val normalized get() = Path(java.normalize())
     
     fun relativize(other: Path) = Path(absolute.java.relativize(other.absolute.java))
     fun relativeTo(root: Path) = root.relativize(this)
@@ -39,6 +46,9 @@ data class Path(val java: JPath) {
         fun of(str: String) = Path(Paths.get(str))
     }
 }
+
+fun JPath.resolve(other: Path) =
+    Path(this.resolve(other.java))
 
 /**
  * Represents an existing [File] or [Dir] in the [FileSystem]. These cannot be constructed directly
@@ -57,6 +67,7 @@ sealed interface FileOrDir {
     val readable get() = java.canRead()
     val writeable get() = java.canWrite()
     val lastModified get() = Instant.ofEpochMilli(java.lastModified())
+    val parent get() = Dir(java.parentFile)
 
     fun fileOrNull(): File? = this as? File
     fun dirOrNull(): Dir? = this as? Dir
