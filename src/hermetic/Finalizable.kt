@@ -28,14 +28,14 @@ fun <F : Finalizable<E>, E, R> F.use(block: (F) -> R): FinalizedResult<E, R> {
     var result: FinalizedResult<E, R>? = null
     try {
         result = FinalizedResult(null, block(this))
-        return result
     } finally {
         val error = finalize()
         val res = result?.result // If this is null, then we encountered an exception
         if (error != null && res != null) {
-            return FinalizedResult(error, res)
+            result = FinalizedResult(error, res)
         }
     }
+    return result
 }
 
 fun <F : Finalizable<E>, E : Any, R> F.useThrowing(block: (F) -> R): R =

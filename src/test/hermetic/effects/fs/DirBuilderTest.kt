@@ -2,7 +2,8 @@ package hermetic.effects.fs
 
 import hermetic.either.getOrThrow
 import hermetic.test.assertOk
-import hermetic.use
+import hermetic.test.test
+import hermetic.useThrowing
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 
@@ -10,7 +11,7 @@ import org.junit.jupiter.api.TestInstance
 class DirBuilderTest {
     @Test
     fun `creates directories and files using the underlying file system`() {
-        FileSystem.restricted("build", async = false).ephemeral().use { fs ->
+        FileSystem.test(this).useThrowing { fs ->
             val root = fs.getOrCreateDir("DirBuilderTest").getOrThrow()
             dirBuilder(fs.restricted(root)) {
                 dir("some-dir") {

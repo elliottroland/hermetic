@@ -43,7 +43,7 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
                         mkdirs -> createDir(resolved.parent, mkdirs = true).getOr { return err(it) }
                         else -> return err(ParentPathDoesNotExist(resolved))
                     }
-                    is PathIsFile -> return err(err)
+                    is PathIsFile -> return err(AncestorPathIsFile(err.file, resolved))
                 }
             }
 
@@ -125,7 +125,10 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
 
     override fun inputStream(file: File): Either<FileError, InputStream> =
         try {
-            val inputStream = FileInputStream(scope.resolve(file).java)
+            val resolved = scope.resolve(file).java
+                .takeIf { it.exists() }
+                ?: return err(PathDoesNotExist(file.path, null))
+            val inputStream = FileInputStream(resolved)
             when {
                 async != null -> ok(AsyncInputStream(inputStream, async))
                 else -> ok(inputStream)
@@ -138,7 +141,10 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
 
     override fun outputStream(file: File): Either<FileError, OutputStream> =
         try {
-            val outputStream = FileOutputStream(scope.resolve(file).java)
+            val resolved = scope.resolve(file).java
+                .takeIf { it.exists() }
+                ?: return err(PathDoesNotExist(file.path, null))
+            val outputStream = FileOutputStream(resolved)
             when {
                 async != null -> ok(AsyncOutputStream(outputStream, async))
                 else -> ok(outputStream)
@@ -149,8 +155,9 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
             err(PathDoesNotExist(file.path, e))
         }
 
-    override fun walk(dir: Dir, maxDepth: Int, direction: FileWalkDirection, shouldEnter: (Dir) -> Boolean): Sequence<FileOrDir> =
-        scope.resolve(dir).java.walk(direction)
+    override fun walk(dir: Dir, maxDepth: Int, shouldEnter: (Dir) -> Boolean): Sequence<FileOrDir> =
+        scope.resolve(dir).java
+            .walk(FileWalkDirection.TOP_DOWN)
             .maxDepth(maxDepth)
             .onEnter { shouldEnter(Dir(it)) }
             .map { it.toFileOrDir() }
@@ -160,6 +167,9 @@ class DefaultFileSystem<out L : Lifespan, out S : Scope>(
 
     override fun ephemeral(): FileSystem<Lifespan.Ephemeral, S> =
         DefaultFileSystem(Lifespan.Ephemeral(), scope, async)
+
+    override fun async(async: Async?): FileSystem<L, S> =
+        DefaultFileSystem(lifespan, scope, async)
 
     private fun java.io.File.toFileOrDir(): FileOrDir =
         when {

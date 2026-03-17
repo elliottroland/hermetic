@@ -61,6 +61,8 @@ fun throwable(error: Any, generateStackTrace: Boolean = true): Throwable =
         }.apply { if (!generateStackTrace) clearStackTrace() }
     }
 
+fun Any?.throwIfNotNull(): Nothing? = if (this != null) throw throwable(this) else null
+
 fun main() {
     throw throwable(listOf(1, 2, "Hello", 4, IllegalStateException()))
 }

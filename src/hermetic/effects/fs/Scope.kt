@@ -42,9 +42,7 @@ sealed interface Scope {
                 path.isAbsolute -> rootDir.path.relativize(path)
                 else -> path
             }.also {
-                require(!it.startsWith("..")) {
-                    "Expected path ${path.absolute} to be below root ${rootDir.path.absolute}"
-                }
+                require(!it.startsWith("..")) { "Expected path ${path.absolute} to be below root ${rootDir.path.absolute}" }
             }.let { rootDir.path.resolve(it) }
         }
 
@@ -55,7 +53,7 @@ sealed interface Scope {
          */
         @Suppress("UNCHECKED_CAST")
         override fun <T : FileOrDir> resolve(ford: T): T =
-            if (ford.path.java.startsWith(rootDir.path.java)) {
+            if (ford.path.java.normalize().startsWith(rootDir.path.java)) {
                 ford
             } else {
                 val path = resolve(ford.path.absolute)

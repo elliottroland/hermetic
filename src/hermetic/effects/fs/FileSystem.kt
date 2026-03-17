@@ -68,12 +68,6 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
         fun restricted(rootDir: Dir, async: Boolean = false): RestrictedFileSystem =
             global(async).restricted(rootDir)
 
-        fun restricted(rootDir: Path, async: Boolean = false): RestrictedFileSystem =
-            global(async).let { it.restricted(it.getOrCreateDir(rootDir).getOrThrow()) }
-
-        fun restricted(rootDir: String, async: Boolean = false): RestrictedFileSystem =
-            global(async).let { it.restricted(it.getOrCreateDir(rootDir).getOrThrow()) }
-
         /**
          * Returns a new [ephemeral][Lifespan.Ephemeral] file system which is also [global][Scope.Global].
          * If [async] is true, the resulting file system's [inputStream]s and [outputStream]s are offloaded to the dedicated [Async.IO] for
@@ -129,7 +123,6 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
     fun walk(
         dir: Dir,
         maxDepth: Int = Int.MAX_VALUE,
-        direction: FileWalkDirection = FileWalkDirection.TOP_DOWN,
         shouldEnter: (Dir) -> Boolean = { true }
     ): Sequence<FileOrDir>
 
@@ -145,6 +138,11 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
      * Creates a new [ephemeral][Lifespan.Ephemeral] file system from this file system.
      */
     fun ephemeral(): FileSystem<Lifespan.Ephemeral, S>
+
+    /**
+     * Returns a new [FileSystem] which is backed by the given [async], if supported by the implementation.
+     */
+    fun async(async: Async?): FileSystem<L, S>
 
     // -- Default implementations --
 
@@ -230,7 +228,7 @@ interface FileSystem<out L : Lifespan, out S : Scope> : Finalizable<Finalization
         delete(ford).map { true }.recoverIf({ it is PathDoesNotExist }, { false })
     
     fun list(dir: Dir): Sequence<FileOrDir> =
-        walk(dir, maxDepth = 1, direction = FileWalkDirection.TOP_DOWN, shouldEnter = { true }).drop(1)
+        walk(dir, maxDepth = 1, shouldEnter = { true }).drop(1)
 
     fun listFiles(dir: Dir): Sequence<File> =
         list(dir).filterIsInstance<File>()
